@@ -13,6 +13,7 @@ import scala.collection.JavaConversions._
  */
 
 case class UnreadMessageCount(userId: Int)
+case class UnreadGroupMessageCount(userId: Int)
 
 object CacheManager
 {
@@ -40,6 +41,20 @@ class CacheManager extends Actor {
     case r: UnreadMessageCount =>
       val currentSender = sender()
       Settings.connects.get("unread").map { redis =>
+        redis.hgetall(r.userId).map { result =>
+          val unread: List[(String, Int)] = result.map { entry =>
+            (entry._1, entry._2.toInt)
+          }.toList
+          currentSender ! unread
+        }.getOrElse {
+          currentSender ! NotFound
+        }
+      }.getOrElse {
+        currentSender ! NotFound
+      }
+    case r: UnreadGroupMessageCount =>
+      val currentSender = sender()
+      Settings.connects.get("group_counter").map { redis =>
         redis.hgetall(r.userId).map { result =>
           val unread: List[(String, Int)] = result.map { entry =>
             (entry._1, entry._2.toInt)

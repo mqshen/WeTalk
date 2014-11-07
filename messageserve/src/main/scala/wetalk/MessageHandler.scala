@@ -63,7 +63,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
 
 
   def handleParsingResult(result: WTPackage) = {
-    val currentSender = sender()
+    val serverConnection = sender()
     result match {
       case request: LoginRequest=>
         val f = databaseActor ? UserAuth(request.userName, request.password)
@@ -71,34 +71,37 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           case user: User =>
             val response = LoginResponse(user, result.seqNo)
             this.user = Some(user)
-            currentSender ! Write(response.packageData())
+            serverConnection ! Write(response.packageData())
           case e =>
             val response = ErrorResponse(1, "not found", result.seqNo)
-            currentSender ! Write(response.packageData())
+            serverConnection ! Write(response.packageData())
         }
         f onFailure {
           case t =>
             val response = ErrorResponse(1, "not found", result.seqNo)
-            currentSender ! Write(response.packageData())
+            serverConnection ! Write(response.packageData())
         }
       case request: HeartbeatRequest =>
         val response = HeartbeatResponse(request.seqNo)
-        currentSender ! Write(response.packageData())
+        serverConnection ! Write(response.packageData())
+      case request: MessageSend =>
+        val response = MessageSendAckResponse(request.message.seqNo, request.seqNo)
+        serverConnection ! Write(response.packageData())
       case request: DepartmentRequest =>
         user.map { u =>
           val f = databaseActor ? GetDepartment(1)
           f onSuccess {
             case department: Department =>
               val response = DepartResponse(department, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
         }
       case request: RecentContactRequest =>
@@ -107,15 +110,15 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           f onSuccess {
             case contact: List[RecentContact]=>
               val response = RecentContactResponse(contact, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
         }
       case request: GroupListRequest =>
@@ -124,15 +127,15 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           f onSuccess {
             case groups: List[Group]=>
               val response = GroupListResponse(groups, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
         }
       case request: RecentGroupListRequest =>
@@ -141,15 +144,15 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           f onSuccess {
             case groups: List[Group]=>
               val response = RecentGroupListResponse(groups, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
         }
       case request: UnreadMessageCountRequest=>
@@ -158,15 +161,32 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           f onSuccess {
             case unread: List[(String, Int)] =>
               val response = UnreadMessageCountResponse(unread, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
+          }
+        }
+      case request: UnreadGroupMessageCountRequest=>
+        user.map { u =>
+          val f = cacheActor ? UnreadGroupMessageCount(u.id)
+          f onSuccess {
+            case unread: List[(String, Int)] =>
+              val response = UnreadGroupMessageCountResponse(unread, result.seqNo)
+              serverConnection ! Write(response.packageData())
+            case e =>
+              val response = ErrorResponse(1, "not found", result.seqNo)
+              serverConnection ! Write(response.packageData())
+          }
+          f onFailure {
+            case t =>
+              val response = ErrorResponse(1, "not found", result.seqNo)
+              serverConnection ! Write(response.packageData())
           }
         }
       case request: GetFriendRequest =>
@@ -175,15 +195,15 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
           f onSuccess {
             case users: List[User]=>
               val response = FriendsResponse(users, result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
             case e =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
           f onFailure {
             case t =>
               val response = ErrorResponse(1, "not found", result.seqNo)
-              currentSender ! Write(response.packageData())
+              serverConnection ! Write(response.packageData())
           }
         }
     }

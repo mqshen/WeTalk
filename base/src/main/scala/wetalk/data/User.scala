@@ -16,3 +16,7 @@ case class Department(id: Int, title: String, description: String, parentID: Str
                       leader: String, status: Int, created: Date, updated: Date)
 
 case class RecentContact(id: Int, userId: Int, friendId: Int, status: Int, created: Date, updated: Date)
+
+
+case class Message(seqNo: Int, fromId: String, toId: String, timestamp: Long, msgType: Byte,
+                   content: String, attachContent: String)

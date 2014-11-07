@@ -18,6 +18,7 @@ object MessageActor {
 class MessageActor extends Actor with ActorLogging {
   val databaseActor = context.actorOf(DataManager.props())
   val cacheActor = context.actorOf(CacheManager.props())
+  val sessionRegion = context.actorOf(LocalConnectionSessionRegion.props(databaseActor, cacheActor))
 
   override def receive: Receive = {
     case b @ Bound(localAddress) =>
@@ -27,7 +28,8 @@ class MessageActor extends Actor with ActorLogging {
       context stop self
 
     case c @ Connected(remote, local) =>
-      val handler = context.actorOf(MessageHandler.props(databaseActor, cacheActor))
+      //val handler = context.actorOf(MessageHandler.props(databaseActor, cacheActor))
+      val handler = context.actorOf(MessageServerWorker.props(databaseActor, sessionRegion))
       val connection = sender()
       connection ! Register(handler)
   }
