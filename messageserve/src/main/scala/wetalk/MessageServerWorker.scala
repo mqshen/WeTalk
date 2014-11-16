@@ -92,47 +92,71 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
         var start = 0
         if(hasRemainData) {
           val dataLength = remainData.length
-          val lastLength = if (dataLength < 4) {
-            val length = data.slice(0, 4 - dataLength)
+          val tempLength = data.length
+          if(dataLength + tempLength < 4) {
             val frameBuilder = ByteString.newBuilder
             frameBuilder.append(remainData)
-            frameBuilder.append(length)
-            frameBuilder.result().iterator.getInt
+            frameBuilder.append(data)
+            remainData = frameBuilder.result()
+            start = data.length
           }
           else {
-            remainData.iterator.getInt
-          }
-          val frameBuilder = ByteString.newBuilder
-          if(dataLength > 4) {
-            frameBuilder.append(remainData.slice(4, dataLength ))
-          }
-          start = Math.max(0, 4 - dataLength)
-
-          val tempData = data.slice(start, lastLength - dataLength )
-          frameBuilder.append(tempData)
-          val result = frameBuilder.result()
-          try {
-            val tempPackage = WTRequestParser(result.iterator)
-            if (tempPackage.isInstanceOf[MessageServerRequest] ) {
-              //println("remainData" + remainData)
-              //println("result" + result)
-              //println("lastData" + lastData)
-              //println("data" + data)
-              println("test")
+            val lastLength = if (dataLength < 4) {
+              val length = data.slice(0, 4 - dataLength)
+              val frameBuilder = ByteString.newBuilder
+              frameBuilder.append(remainData)
+              frameBuilder.append(length)
+              frameBuilder.result().iterator.getInt
             }
-            sessionRegion ! SendPackage(sessionId, tempPackage)
+            else {
+              remainData.iterator.getInt
+            }
+            if(dataLength + tempLength < lastLength) {
+              val frameBuilder = ByteString.newBuilder
+              frameBuilder.append(remainData)
+              frameBuilder.append(data)
+              remainData = frameBuilder.result()
+              start = data.length
+            }
+            else {
+              val frameBuilder = ByteString.newBuilder
+              if(dataLength > 4) {
+                frameBuilder.append(remainData.slice(4, dataLength ))
+              }
+              start = Math.max(0, 4 - dataLength)
+
+              val tempData = data.slice(start, lastLength - dataLength )
+              frameBuilder.append(tempData)
+              val result = frameBuilder.result()
+              if (result.length < lastLength - 4) {
+                remainData = result
+                start = result.length
+              }
+
+              try {
+                val tempPackage = WTRequestParser(result.iterator)
+                if (tempPackage.isInstanceOf[MessageServerRequest] ) {
+                  //println("remainData" + remainData)
+                  //println("result" + result)
+                  //println("lastData" + lastData)
+                  //println("data" + data)
+                  println("test")
+                }
+                sessionRegion ! SendPackage(sessionId, tempPackage)
+              }
+              catch {
+                case e =>
+                  //println("remainData" + remainData)
+                  //println("result" + result)
+                  //println("lastData" + lastData)
+                  //println("data" + data)
+                  e.printStackTrace()
+              }
+              hasRemainData = false
+              remainData = null
+              start = lastLength - dataLength
+            }
           }
-          catch {
-            case e =>
-              //println("remainData" + remainData)
-              //println("result" + result)
-              //println("lastData" + lastData)
-              //println("data" + data)
-              e.printStackTrace()
-          }
-          hasRemainData = false
-          remainData = null
-          start = lastLength - dataLength
         }
         while(start <= remainLength - 1) {
           if (start + 4 > remainLength) {

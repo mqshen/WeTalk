@@ -158,7 +158,7 @@ class WeTalkLoadDriver extends Actor with ActorLogging {
     case MessageArrived(roundtripTime: Long) =>
       roundtripTimes += roundtripTime
 
-      if(isMessagesSent && roundtripTimes.size == nMessagesExpected - 100) {
+      if(isMessagesSent && roundtripTimes.size % 1000 == 0) {
         println("receivet rouund:" + roundtripTimes.size)
       }
       if (isMessagesSent && roundtripTimes.size >= nMessagesExpected) {
