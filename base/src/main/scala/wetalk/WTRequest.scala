@@ -2,7 +2,8 @@ package wetalk
 
 import java.nio.ByteOrder
 
-import akka.util.ByteString
+import akka.io.Tcp.Command
+import akka.util.{ByteIterator, ByteString}
 import wetalk.data._
 
 import wetalk.util._
@@ -18,24 +19,18 @@ object ServiceType extends Enumeration {
 object WTRequestParser {
   val headerLength = 12
 
-  def apply(input: ByteString): WTPackage = {
-    if(input.length < headerLength) {
-      badProtocol
-    }
-    else {
-      val it = input.iterator
-      implicit val byteOrder = ByteOrder.BIG_ENDIAN
-      val length = it.getInt
+  def apply(it: ByteIterator)(implicit byteOrder : java.nio.ByteOrder): WTPackage = {
       val sId = it.getShort
       val cId = it.getShort
       val version = it.getShort
       val seqNo = it.getShort
-      println(s"sid: ${sId}, cId: ${cId}")
+
+      //println(s"sid: ${sId}, cId: ${cId} seqNo: ${seqNo.toInt}")
       sId match {
         case 1 => {
           cId match {
             case 1 =>
-              MessageSeverRequest(seqNo)
+              MessageServerRequest(seqNo)
             case 2 =>
               MessageSeverAddressRequest(seqNo)
             case 3 =>
@@ -80,6 +75,13 @@ object WTRequestParser {
               GroupListRequest(seqNo)
             case 5 =>
               UnreadGroupMessageCountRequest(seqNo)
+            case 12 =>
+              val name = it.getString()
+              val avatar = it.getString()
+              val size = it.getInt
+              val users = (0 until(size)).map(_ => it.getString()).toList
+
+              CreateTempGroupRequest(name, avatar, users, seqNo)
             case 16 =>
               RecentGroupListRequest(seqNo)
           }
@@ -90,7 +92,6 @@ object WTRequestParser {
               HeartbeatRequest(seqNo)
           }
         }
-      }
     }
   }
 
@@ -98,7 +99,7 @@ object WTRequestParser {
 
 }
 
-trait WTPackage {
+trait WTPackage extends  Command with Serializable{
   implicit val byteOrder = ByteOrder.BIG_ENDIAN
   def serverId: Int
   def commandId: Int
@@ -134,7 +135,7 @@ case class HeartbeatRequest(seqNo: Int) extends WTPackage
   }
 }
 // login request
-case class MessageSeverRequest(seqNo: Int) extends WTPackage
+case class MessageServerRequest(seqNo: Int) extends WTPackage
 {
   val length = 12
   val serverId = 1
@@ -190,7 +191,16 @@ case class MessageSend(message: Message, seqNo: Int) extends WTPackage
   val commandId = 1
 
   def packageObject: ByteString = {
-    ByteString("")
+    val frameBuilder = ByteString.newBuilder
+
+    frameBuilder.putInt(message.seqNo)
+    frameBuilder.putString(message.fromId)
+    frameBuilder.putString(message.toId)
+    frameBuilder.putInt(0)
+    frameBuilder.putByte(message.msgType)
+    frameBuilder.putString(message.content)
+    frameBuilder.putString(message.attachContent)
+    frameBuilder.result()
   }
 }
 
@@ -217,18 +227,19 @@ case class UnreadMessageRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class LoginRequest(userName: String, password: String, status: Int, clientType: Int, clientVersion: String, seqNo: Int) extends WTPackage
+case class LoginRequest(userName: String, password: String, status: Int, clientType: Int, clientVersion: String, seqNo: Int)
+  extends WTPackage
 {
   val length = 12
   val serverId = 1
   val commandId = 3
   def packageObject: ByteString = {
-    implicit val byteOrder = ByteOrder.BIG_ENDIAN
     val frameBuilder = ByteString.newBuilder
-    frameBuilder.putInt(length)
-    frameBuilder.putShort(1)
-    frameBuilder.putShort(1)
-    frameBuilder.putShort(seqNo)
+    frameBuilder.putString(userName)
+    frameBuilder.putString(password)
+    frameBuilder.putInt(status)
+    frameBuilder.putInt(clientType)
+    frameBuilder.putString(clientVersion)
     frameBuilder.result()
   }
 }
@@ -267,6 +278,55 @@ case class UnreadGroupMessageCountRequest(seqNo: Int) extends WTPackage
   }
 }
 
+case class CreateTempGroupRequest(name: String, avatar: String, users:List[String], seqNo: Int) extends WTPackage
+{
+  val length = 12
+  val serverId = 5
+  val commandId = 12
+
+  def packageObject: ByteString = {
+    ByteString("")
+  }
+}
+
+case class CreateTempGroupResponse(group: Group, seqNo: Int) extends WTPackage
+{
+  val length = 12
+  val serverId = 5
+  val commandId = 13
+
+  def packageObject: ByteString = {
+    val frameBuilder = ByteString.newBuilder
+    frameBuilder.putInt(0)
+    frameBuilder.putString(group.id.toString)
+    frameBuilder.putString(group.name)
+    frameBuilder.putInt(group.users.size)
+    group.users.foreach { id =>
+      frameBuilder.putString(id)
+    }
+    frameBuilder.result()
+  }
+}
+
+case class AddMemberTempGroupResponse(group: Group, seqNo: Int) extends WTPackage
+{
+  val length = 12
+  val serverId = 5
+  val commandId = 15
+
+  def packageObject: ByteString = {
+    val frameBuilder = ByteString.newBuilder
+    frameBuilder.putInt(0)
+    frameBuilder.putString(group.id.toString)
+    frameBuilder.putString(group.name)
+    frameBuilder.putInt(group.users.size)
+    group.users.foreach { id =>
+      frameBuilder.putString(id)
+    }
+    frameBuilder.result()
+  }
+}
+
 case class RecentGroupListRequest(seqNo: Int) extends WTPackage
 {
   val length = 12
@@ -290,7 +350,7 @@ case class HeartbeatResponse(seqNo: Int) extends WTPackage
   }
 }
 
-case class MessageSendAckResponse(msgNo: Int, seqNo: Int) extends WTPackage
+case class MessageSendAckResponse(msgNo: Int, timestamp: Long, seqNo: Int) extends WTPackage
 {
   val length = 12
   val serverId = 3
@@ -299,6 +359,7 @@ case class MessageSendAckResponse(msgNo: Int, seqNo: Int) extends WTPackage
   def packageObject: ByteString = {
     val frameBuilder = ByteString.newBuilder
     frameBuilder.putInt(msgNo)
+    frameBuilder.putLong(timestamp)
     frameBuilder.result()
   }
 }
@@ -508,8 +569,11 @@ case class RecentGroupListResponse(groups: List[Group], seqNo: Int) extends WTPa
       frameBuilder.putString(g.avatar)
       frameBuilder.putString(g.creator.toString)
       frameBuilder.putInt(g.groupType)
-      frameBuilder.putLong(g.updated.getTime)
-      frameBuilder.putLong(g.count)
+      frameBuilder.putInt(g.updated.getTime.toInt)
+      frameBuilder.putInt(g.count)
+      g.users.foreach { userId =>
+        frameBuilder.putString(userId)
+      }
     }
     frameBuilder.result()
   }

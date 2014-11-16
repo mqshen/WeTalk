@@ -47,7 +47,9 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
   def receive = {
     case Received(data) =>
       try {
-        handleParsingResult(WTRequestParser(data))
+        val it = data.iterator
+        it.getInt
+        handleParsingResult(WTRequestParser(it))
       }
       catch {
         case e: ExceptionWithErrorInfo =>
@@ -85,7 +87,8 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         val response = HeartbeatResponse(request.seqNo)
         serverConnection ! Write(response.packageData())
       case request: MessageSend =>
-        val response = MessageSendAckResponse(request.message.seqNo, request.seqNo)
+        val timestamp = System.currentTimeMillis()
+        val response = MessageSendAckResponse(request.message.seqNo, timestamp, request.seqNo)
         serverConnection ! Write(response.packageData())
       case request: DepartmentRequest =>
         user.map { u =>

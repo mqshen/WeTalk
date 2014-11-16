@@ -56,6 +56,17 @@ object Build extends sbt.Build {
     .configs(MultiJvm)
    .dependsOn(wetalkBase)
 
+  lazy val benchmark = Project("wetalk-benchmark", file("benchmark"))
+    .settings(basicSettings: _*)
+    .settings(formatSettings: _*)
+    .settings(releaseSettings: _*)
+    .settings(SbtMultiJvm.multiJvmSettings ++ multiJvmSettings: _*)
+    .settings(libraryDependencies ++= Dependencies.all)
+    .settings(unmanagedSourceDirectories in Test += baseDirectory.value / "multi-jvm/scala")
+    .settings(XitrumPackage.skip: _*)
+    .configs(MultiJvm)
+    .dependsOn(wetalkBase)
+
   lazy val basicSettings = Seq(
       organization := "com.wandoulabs.akka",
       version := "0.2.0-SNAPSHOT",

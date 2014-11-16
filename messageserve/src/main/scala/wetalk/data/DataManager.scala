@@ -1,6 +1,6 @@
 package wetalk.data
 
-import java.sql.{ResultSet, PreparedStatement, Statement, DriverManager}
+import java.sql._
 import java.util.Date
 
 import akka.actor.{Props, Actor}
@@ -22,6 +22,7 @@ case class GetFriend(userId: Int)
 case class GetRecentContract(userId: Int)
 case class GetGroupList(userId: Int)
 case class GetRecentGroupList(userId: Int)
+case class GetGroupInfo(groupId: Int)
 
 object DataManager
 {
@@ -29,6 +30,8 @@ object DataManager
 }
 
 class DataManager extends Actor {
+
+  implicit def date2timestamp(date: java.util.Date) = new java.sql.Timestamp(date.getTime)
 
   val config = ConfigFactory.load().getConfig("wetalk.database")
   val Settings = new Settings(config)
@@ -103,6 +106,12 @@ class DataManager extends Actor {
     case GetGroupList(userId) =>
       val groups = getGroupList(userId, true)
       sender() ! groups
+    case GetGroupInfo(groupId) =>
+      getGroupInfo(groupId).map { group =>
+        sender() ! group
+      }.getOrElse {
+        sender() ! None
+      }
     case GetFriend(userId) =>
       val sql = "select id, name, nick, avatar, address, status, sex, type, phone, mail, " +
         "created, updated from IMUsers, IMFriend where IMUsers.id = IMFriend.friend_id and IMFriend.user_id = ?"
@@ -145,6 +154,124 @@ class DataManager extends Actor {
         close(rs)
         close(statement)
       }
+    case group: Group =>
+      createGroup(group)
+  }
+
+  def joinGroup(groupId: Int, userId: Int): Unit = {
+    val sql = "insert into IMGroupRelation(group_id, user_id)" +
+      "values(?, ?)"
+    var statement: PreparedStatement = null
+    statement = Settings.connect.prepareStatement(sql)
+    try {
+      statement.setInt(1, groupId)
+      statement.setInt(2, userId)
+      statement.executeUpdate()
+    }
+    finally {
+      close(statement)
+    }
+  }
+
+  def createGroup(group: Group) = {
+    val sql = "insert into IMGroup(name, avatar, description, create_user_id, type, status, count, created, updated)" +
+      "values(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    var statement: PreparedStatement = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setString(1, group.name)
+      statement.setString(2, group.avatar)
+      statement.setString(3, group.description)
+      statement.setInt(4, group.creator)
+      statement.setInt(5, group.groupType)
+      statement.setInt(6, group.status)
+      statement.setInt(7, group.count)
+      statement.setTimestamp(8, group.created)
+      statement.setTimestamp(9, group.created)
+      val result = statement.executeUpdate()
+      if(result > 0 ) {
+        val id = getCurrentId()
+        if(id > 0) {
+          joinGroup(id, group.creator)
+          group.users.foreach { userId =>
+            joinGroup(id, userId.toInt)
+          }
+          sender() ! group.copy(id = id)
+        }
+        else
+          sender() ! None
+      }
+      else
+        sender() ! None
+    }
+    finally {
+      close(statement)
+    }
+  }
+
+  def getGroupUserIds(groupId: Int): List[String] = {
+    val sql = "select user_id from IMGroupRelation where group_id = ?"
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setInt(1, groupId)
+      rs = statement.executeQuery
+      val users = ArrayBuffer[String]()
+      while (rs.next()) {
+        users.append(rs.getString("user_id"))
+      }
+      users.toList
+    }
+    finally {
+      close(rs)
+      close(statement)
+    }
+  }
+
+  def getGroupInfo(groupId: Int): Option[Group]= {
+    val sql = "select name, avatar, description, create_user_id, type, status, count, created, updated from IMGroup where id = ?"
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setInt(1, groupId)
+      rs = statement.executeQuery
+      if (rs.next()) {
+        val userIds = getGroupUserIds(groupId)
+        val group = Group(groupId, rs.getString("name"), rs.getString("avatar"), rs.getString("description"),
+          rs.getInt("create_user_id"), rs.getInt("type"), rs.getInt("status"), rs.getInt("count"), rs.getDate("created"),
+           rs.getDate("updated"), userIds)
+        Some(group)
+      }
+      else {
+        None
+      }
+    }
+    finally {
+      close(rs)
+      close(statement)
+    }
+  }
+
+  def getCurrentId(): Int = {
+    val sql = "SELECT LAST_INSERT_ID()"
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      rs = statement.executeQuery
+      if (rs.next()) {
+        rs.getInt(1)
+      }
+      else {
+        0
+      }
+    }
+    finally {
+      close(rs)
+      close(statement)
+    }
   }
 
   def getGroupList(userId: Int, isRecent: Boolean): List[Group] = {
@@ -164,9 +291,11 @@ class DataManager extends Actor {
       rs = statement.executeQuery
       val groups = ArrayBuffer[Group]()
       while (rs.next()) {
-        val group = Group( rs.getInt("id"), rs.getString("name"), rs.getString("avatar"),
+        val groupId = rs.getInt("id")
+        val userIds = getGroupUserIds(groupId)
+        val group = Group( groupId, rs.getString("name"), rs.getString("avatar"),
           rs.getString("description"), rs.getInt("create_user_id"), rs.getInt("type"), rs.getInt("status"), rs.getInt("count"),
-          rs.getDate("created"), rs.getDate("updated"))
+          rs.getDate("created"), rs.getDate("updated"), userIds)
         groups.append(group)
       }
       groups.toList

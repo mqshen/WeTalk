@@ -1,6 +1,7 @@
 package wetalk
 
 import java.nio.ByteOrder
+import java.util.Date
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, ActorRef}
@@ -33,6 +34,7 @@ object ConnectionSession {
   final case class SendPackage(sessionId: String, wtPackage: WTPackage) extends Command with Event
 
   final case class DispatchPackage(userId: String, wtPackage: WTPackage) extends DispatchCommand with Event
+  final case class GroupDispatchPackage(userId: String, users: List[String], wtPackage: WTPackage) extends DispatchCommand with Event
 
 
   final class State(var sessionId: String, var connection: ActorRef, var topics: immutable.Set[String]) extends Serializable {
@@ -109,21 +111,32 @@ trait ConnectionSession { _: Actor =>
       handlerPackage(wtPackage)
     case request: MessageReceiveResponse =>
       connection ! Write(request.packageData())
+    case request: WTPackage =>
+      connection ! Write(request.packageData())
   }
 
 
   def handlerPackage(result: WTPackage) = {
     val serverConnection = connection
-    println(serverConnection)
-    println(result)
     result match {
       case request: HeartbeatRequest =>
         val response = HeartbeatResponse(request.seqNo)
         serverConnection ! Write(response.packageData())
       case request: MessageSend =>
-        val response = MessageSendAckResponse(request.message.seqNo, request.seqNo)
+        val response = MessageSendAckResponse(request.message.seqNo, request.message.timestamp, request.seqNo)
+
         val dispatchResponse = MessageReceiveResponse(request.message, 0)
-        context.parent ! DispatchPackage(request.message.toId, dispatchResponse)
+        if(request.message.msgType == 17) {
+          val f = databaseActor ? GetGroupInfo(request.message.toId.toInt)
+          f onSuccess {
+            case group: Group =>
+              context.parent ! GroupDispatchPackage(user.id.toString, group.users, dispatchResponse)
+            case e =>
+          }
+        }
+        else {
+          context.parent ! DispatchPackage(request.message.toId, dispatchResponse)
+        }
         serverConnection ! Write(response.packageData())
       case request: DepartmentRequest =>
         val f = databaseActor ? GetDepartment(1)
@@ -230,6 +243,28 @@ trait ConnectionSession { _: Actor =>
             val response = ErrorResponse(1, "not found", result.seqNo)
             serverConnection ! Write(response.packageData())
         }
+      case request: CreateTempGroupRequest =>
+        val currentDate = new Date()
+        val f = databaseActor ? Group(0, request.name, request.avatar, "", user.id, 0, 0, request.users.size + 1,
+          currentDate, currentDate, request.users)
+        f onSuccess {
+          case group: Group =>
+            val response = CreateTempGroupResponse(group, result.seqNo)
+            //val otherResponse = AddMemberTempGroupResponse(group, 0 )
+            //context.parent ! GroupDispatchPackage(user.id.toString, group.users, otherResponse)
+            context.parent ! GroupDispatchPackage(user.id.toString, group.users, response)
+            serverConnection ! Write(response.packageData())
+          case e =>
+            val response = ErrorResponse(1, "not found", result.seqNo)
+            serverConnection ! Write(response.packageData())
+        }
+        f onFailure {
+          case t =>
+            val response = ErrorResponse(1, "not found", result.seqNo)
+            serverConnection ! Write(response.packageData())
+        }
+      case request: MessageServerRequest =>
+        println(request)
     }
   }
 }

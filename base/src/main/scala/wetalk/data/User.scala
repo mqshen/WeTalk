@@ -11,7 +11,7 @@ case class User(id:Int, name: String, nick: String, avatar: String, address: Str
 }
 
 case class Group(id: Int, name: String, avatar: String, description: String, creator: Int, groupType: Int, status: Int, count: Int,
-                  created: Date, updated: Date)
+                  created: Date, updated: Date, users: List[String])
 case class Department(id: Int, title: String, description: String, parentID: String,
                       leader: String, status: Int, created: Date, updated: Date)
 
