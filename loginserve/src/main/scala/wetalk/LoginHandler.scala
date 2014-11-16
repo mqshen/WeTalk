@@ -34,7 +34,7 @@ class LoginHandler extends Actor {
   def receive = {
     case Received(data) =>
       try {
-        val response = handleParsingResult(WTRequestParser(data))
+        val response = handleParsingResult(WTRequestParser(data.iterator))
         sender() ! Write(response.packageData())
       }
       catch {
@@ -52,7 +52,7 @@ class LoginHandler extends Actor {
 
   def handleParsingResult(result: WTPackage): WTPackage = {
     result match {
-      case request: MessageSeverRequest =>
+      case request: MessageServerRequest =>
         MessageServerResponse(Settings.messageServer, result.seqNo)
     }
   }
