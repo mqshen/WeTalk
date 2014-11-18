@@ -3,9 +3,9 @@ package wetalk.data
 import java.sql.DriverManager
 
 import akka.actor.Actor.Receive
-import akka.actor.{Actor, Props}
-import com.redis.{RedisClient}
-import com.typesafe.config.{Config, ConfigFactory}
+import akka.actor.{ Actor, Props }
+import com.redis.{ RedisClient }
+import com.typesafe.config.{ Config, ConfigFactory }
 import scala.collection.JavaConversions._
 
 /**
@@ -15,8 +15,7 @@ import scala.collection.JavaConversions._
 case class UnreadMessageCount(userId: Int)
 case class UnreadGroupMessageCount(userId: Int)
 
-object CacheManager
-{
+object CacheManager {
   def props() = Props(classOf[DataManager])
 }
 
@@ -26,7 +25,7 @@ class CacheManager extends Actor {
   val Settings = new Settings(config)
 
   class Settings(config: Config) {
-    val connects= {
+    val connects = {
       config.getConfigList("redis").map { redis =>
         val name = redis.getString("name")
         val host = redis.getString("host")

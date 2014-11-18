@@ -1,11 +1,13 @@
 package wetalk
 
+/**
+ * Created by goldratio on 11/18/14.
+ */
 import java.io.{ IOException, FileNotFoundException, FileWriter, BufferedWriter }
 import java.net.InetSocketAddress
 
 import akka.pattern.ask
-import wetalk.WeTalkTestClient.{ MessageArrived, SendMessage, OnOpen }
-import wetalk.data.Message
+import wetalk.WeTalkTestClient._
 import scala.concurrent.duration._
 import akka.actor._
 import com.typesafe.config.ConfigFactory
@@ -20,7 +22,7 @@ import scala.concurrent.forkjoin.ThreadLocalRandom
 /**
  * Created by goldratio on 11/10/14.
  */
-object WeTalkLoadDriver {
+object ChatClientLoadDriver {
 
   val config = ConfigFactory.load().getConfig("wetalk.benchmark")
   val clientConfig = config.getConfig("client")
@@ -82,7 +84,7 @@ object WeTalkLoadDriver {
     while (i < concurrencyLevels.length) {
       val concurrentConnections = concurrencyLevels(i)
 
-      val driver = system.actorOf(Props(new WeTalkLoadDriver), "socketioclients")
+      val driver = system.actorOf(Props(new ChatClientLoadDriver), "socketioclients")
 
       val f = driver.ask(RoundBegin(concurrentConnections))(100.minutes).mapTo[StatsSummary]
       val summaryStats = Await.result(f, Duration.Inf).stats
@@ -94,8 +96,8 @@ object WeTalkLoadDriver {
   final case class RoundContext(receivingTimeoutHandler: Option[Cancellable], statistics: mutable.Map[Double, StatisticalSummary], overallEffectiveRate: Double)
 }
 
-class WeTalkLoadDriver extends Actor with ActorLogging {
-  import WeTalkLoadDriver._
+class ChatClientLoadDriver extends Actor with ActorLogging {
+  import ChatClientLoadDriver._
 
   private var t0 = System.currentTimeMillis
 
@@ -241,8 +243,8 @@ class WeTalkLoadDriver extends Actor with ActorLogging {
 
       var i = 0
       while (i < nToCreate) {
-        val remote = connect(ThreadLocalRandom.current.nextInt(connect.size))
-        val client = system.actorOf(Props(new WeTalkTestClient(remote, self)))
+        //val remote = connect(ThreadLocalRandom.current.nextInt(connect.size))
+        val client = system.actorOf(Props(new ChatClient(self)))
         clients ::= client
         i += 1
       }

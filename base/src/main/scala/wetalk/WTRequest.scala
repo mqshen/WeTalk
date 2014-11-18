@@ -3,7 +3,7 @@ package wetalk
 import java.nio.ByteOrder
 
 import akka.io.Tcp.Command
-import akka.util.{ByteIterator, ByteString}
+import akka.util.{ ByteIterator, ByteString }
 import wetalk.data._
 
 import wetalk.util._
@@ -19,79 +19,79 @@ object ServiceType extends Enumeration {
 object WTRequestParser {
   val headerLength = 12
 
-  def apply(it: ByteIterator)(implicit byteOrder : java.nio.ByteOrder): WTPackage = {
-      val sId = it.getShort
-      val cId = it.getShort
-      val version = it.getShort
-      val seqNo = it.getShort
+  def apply(it: ByteIterator)(implicit byteOrder: java.nio.ByteOrder): WTPackage = {
+    val sId = it.getShort
+    val cId = it.getShort
+    val version = it.getShort
+    val seqNo = it.getInt
 
-      //println(s"sid: ${sId}, cId: ${cId} seqNo: ${seqNo.toInt}")
-      sId match {
-        case 1 => {
-          cId match {
-            case 1 =>
-              MessageServerRequest(seqNo)
-            case 2 =>
-              MessageSeverAddressRequest(seqNo)
-            case 3 =>
-              val userId = it.getString()
-              val password = it.getString()
-              val status = it.getInt
-              val clientType = it.getInt
-              val clientVersion = it.getString()
-              LoginRequest(userId, password, status, clientType, clientVersion, seqNo)
-          }
+    //println(s"sid: ${sId}, cId: ${cId} seqNo: ${seqNo.toInt}")
+    sId match {
+      case 1 => {
+        cId match {
+          case 1 =>
+            MessageServerRequest(seqNo)
+          case 2 =>
+            MessageSeverAddressRequest(seqNo)
+          case 3 =>
+            val userId = it.getString()
+            val password = it.getString()
+            val status = it.getInt
+            val clientType = it.getInt
+            val clientVersion = it.getString()
+            LoginRequest(userId, password, status, clientType, clientVersion, seqNo)
         }
-        case 2 => {
-          cId match {
-            case 1 =>
-              RecentContactRequest(seqNo)
-            case 14 =>
-              GetFriendRequest(seqNo)
-            case 18 =>
-              DepartmentRequest(seqNo)
-          }
+      }
+      case 2 => {
+        cId match {
+          case 1 =>
+            RecentContactRequest(seqNo)
+          case 14 =>
+            GetFriendRequest(seqNo)
+          case 18 =>
+            DepartmentRequest(seqNo)
         }
-        case 3 => {
-          cId match {
-            case 1 =>
-              val msgNo = it.getInt
-              val fromId = it.getString()
-              val toId = it.getString()
-              val temp = it.getInt
-              val msgType = it.getByte
-              val content = it.getString()
-              val attachContent = it.getString()
-              val timestamp = System.currentTimeMillis()
-              val message =  Message(msgNo, fromId, toId, timestamp, msgType, content, attachContent)
-              MessageSend(message, seqNo)
-            case 7 =>
-              UnreadMessageCountRequest(seqNo)
-          }
+      }
+      case 3 => {
+        cId match {
+          case 1 =>
+            val msgNo = it.getInt
+            val fromId = it.getString()
+            val toId = it.getString()
+            val temp = it.getInt
+            val msgType = it.getByte
+            val content = it.getString()
+            val attachContent = it.getString()
+            val timestamp = System.currentTimeMillis()
+            val message = Message(msgNo, fromId, toId, timestamp, msgType, content, attachContent)
+            MessageSend(message, seqNo)
+          case 7 =>
+            UnreadMessageCountRequest(seqNo)
         }
-        case 5 => {
-          cId match {
-            case 1 =>
-              GroupListRequest(seqNo)
-            case 5 =>
-              UnreadGroupMessageCountRequest(seqNo)
-            case 12 =>
-              val name = it.getString()
-              val avatar = it.getString()
-              val size = it.getInt
-              val users = (0 until(size)).map(_ => it.getString()).toList
+      }
+      case 5 => {
+        cId match {
+          case 1 =>
+            GroupListRequest(seqNo)
+          case 5 =>
+            UnreadGroupMessageCountRequest(seqNo)
+          case 12 =>
+            val name = it.getString()
+            val avatar = it.getString()
+            val size = it.getInt
+            val users = (0 until (size)).map(_ => it.getString()).toList
 
-              CreateTempGroupRequest(name, avatar, users, seqNo)
-            case 16 =>
-              RecentGroupListRequest(seqNo)
-          }
+            CreateTempGroupRequest(name, avatar, users, seqNo)
+          case 16 =>
+            RecentGroupListRequest(seqNo)
         }
-        case 7 => {
-          cId match {
-            case 1 =>
-              HeartbeatRequest(seqNo)
-          }
+      }
+      case 7 => {
+        cId match {
+          case 1 =>
+            HeartbeatRequest(seqNo)
         }
+      }
     }
   }
 
@@ -99,7 +99,7 @@ object WTRequestParser {
 
 }
 
-trait WTPackage extends  Command with Serializable{
+trait WTPackage extends Command with Serializable {
   implicit val byteOrder = ByteOrder.BIG_ENDIAN
   def serverId: Int
   def commandId: Int
@@ -107,16 +107,15 @@ trait WTPackage extends  Command with Serializable{
   val version: Int = 1
   def seqNo: Int
 
-
   def packageData(): ByteString = {
     val payload = packageObject
-    val length = 12 + payload.length
+    val length = 14 + payload.length
     val frameBuilder = ByteString.newBuilder
     frameBuilder.putInt(length)
     frameBuilder.putShort(serverId)
     frameBuilder.putShort(commandId)
     frameBuilder.putShort(version)
-    frameBuilder.putShort(seqNo)
+    frameBuilder.putInt(seqNo)
     frameBuilder.append(payload)
     frameBuilder.result()
   }
@@ -124,8 +123,7 @@ trait WTPackage extends  Command with Serializable{
   def packageObject: ByteString
 }
 
-case class HeartbeatRequest(seqNo: Int) extends WTPackage
-{
+case class HeartbeatRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 7
   val commandId = 1
@@ -135,8 +133,7 @@ case class HeartbeatRequest(seqNo: Int) extends WTPackage
   }
 }
 // login request
-case class MessageServerRequest(seqNo: Int) extends WTPackage
-{
+case class MessageServerRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 1
   val commandId = 1
@@ -146,9 +143,8 @@ case class MessageServerRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class MessageSeverAddressRequest(seqNo: Int) extends WTPackage
-{
-  val length = 12
+case class MessageSeverAddressRequest(seqNo: Int) extends WTPackage {
+  val length = 14
   val serverId = 1
   val commandId = 2
   def packageObject: ByteString = {
@@ -157,13 +153,12 @@ case class MessageSeverAddressRequest(seqNo: Int) extends WTPackage
     frameBuilder.putInt(length)
     frameBuilder.putShort(1)
     frameBuilder.putShort(1)
-    frameBuilder.putShort(seqNo)
+    frameBuilder.putInt(seqNo)
     frameBuilder.result()
   }
 }
 // friend request
-case class DepartmentRequest(seqNo: Int) extends WTPackage
-{
+case class DepartmentRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 18
@@ -173,8 +168,7 @@ case class DepartmentRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class GetFriendRequest(seqNo: Int) extends WTPackage
-{
+case class GetFriendRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 14
@@ -184,8 +178,7 @@ case class GetFriendRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class MessageSend(message: Message, seqNo: Int) extends WTPackage
-{
+case class MessageSend(message: Message, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 3
   val commandId = 1
@@ -204,8 +197,7 @@ case class MessageSend(message: Message, seqNo: Int) extends WTPackage
   }
 }
 
-case class UnreadMessageCountRequest(seqNo: Int) extends WTPackage
-{
+case class UnreadMessageCountRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 3
   val commandId = 7
@@ -215,9 +207,7 @@ case class UnreadMessageCountRequest(seqNo: Int) extends WTPackage
   }
 }
 
-
-case class UnreadMessageRequest(seqNo: Int) extends WTPackage
-{
+case class UnreadMessageRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 18
@@ -228,8 +218,7 @@ case class UnreadMessageRequest(seqNo: Int) extends WTPackage
 }
 
 case class LoginRequest(userName: String, password: String, status: Int, clientType: Int, clientVersion: String, seqNo: Int)
-  extends WTPackage
-{
+    extends WTPackage {
   val length = 12
   val serverId = 1
   val commandId = 3
@@ -244,8 +233,7 @@ case class LoginRequest(userName: String, password: String, status: Int, clientT
   }
 }
 
-case class RecentContactRequest(seqNo: Int) extends WTPackage
-{
+case class RecentContactRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 1
@@ -255,9 +243,7 @@ case class RecentContactRequest(seqNo: Int) extends WTPackage
   }
 }
 
-
-case class GroupListRequest(seqNo: Int) extends WTPackage
-{
+case class GroupListRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 1
@@ -267,8 +253,7 @@ case class GroupListRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class UnreadGroupMessageCountRequest(seqNo: Int) extends WTPackage
-{
+case class UnreadGroupMessageCountRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 5
@@ -278,8 +263,7 @@ case class UnreadGroupMessageCountRequest(seqNo: Int) extends WTPackage
   }
 }
 
-case class CreateTempGroupRequest(name: String, avatar: String, users:List[String], seqNo: Int) extends WTPackage
-{
+case class CreateTempGroupRequest(name: String, avatar: String, users: List[String], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 12
@@ -289,8 +273,7 @@ case class CreateTempGroupRequest(name: String, avatar: String, users:List[Strin
   }
 }
 
-case class CreateTempGroupResponse(group: Group, seqNo: Int) extends WTPackage
-{
+case class CreateTempGroupResponse(group: Group, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 13
@@ -308,8 +291,7 @@ case class CreateTempGroupResponse(group: Group, seqNo: Int) extends WTPackage
   }
 }
 
-case class AddMemberTempGroupResponse(group: Group, seqNo: Int) extends WTPackage
-{
+case class AddMemberTempGroupResponse(group: Group, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 15
@@ -327,8 +309,7 @@ case class AddMemberTempGroupResponse(group: Group, seqNo: Int) extends WTPackag
   }
 }
 
-case class RecentGroupListRequest(seqNo: Int) extends WTPackage
-{
+case class RecentGroupListRequest(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 16
@@ -339,8 +320,7 @@ case class RecentGroupListRequest(seqNo: Int) extends WTPackage
 }
 
 //response
-case class HeartbeatResponse(seqNo: Int) extends WTPackage
-{
+case class HeartbeatResponse(seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 7
   val commandId = 1
@@ -350,8 +330,7 @@ case class HeartbeatResponse(seqNo: Int) extends WTPackage
   }
 }
 
-case class MessageSendAckResponse(msgNo: Int, timestamp: Long, seqNo: Int) extends WTPackage
-{
+case class MessageSendAckResponse(msgNo: Int, timestamp: Long, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 3
   val commandId = 2
@@ -381,8 +360,7 @@ case class MessageReceiveResponse(message: Message, seqNo: Int) extends WTPackag
     frameBuilder.result()
   }
 }
-case class ErrorResponse(errorCode: Int, errorMsg: String, seqNo: Int) extends WTPackage
-{
+case class ErrorResponse(errorCode: Int, errorMsg: String, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 1
   val commandId = 2
@@ -393,8 +371,7 @@ case class ErrorResponse(errorCode: Int, errorMsg: String, seqNo: Int) extends W
     frameBuilder.result()
   }
 }
-case class MessageServerResponse(messageServer: List[(String, Short)], seqNo: Int) extends WTPackage
-{
+case class MessageServerResponse(messageServer: List[(String, Short)], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 1
   val commandId = 2
@@ -414,8 +391,7 @@ case class MessageServerResponse(messageServer: List[(String, Short)], seqNo: In
   }
 }
 
-case class LoginResponse(user: User, seqNo: Int) extends WTPackage
-{
+case class LoginResponse(user: User, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 1
   val commandId = 4
@@ -435,8 +411,7 @@ case class LoginResponse(user: User, seqNo: Int) extends WTPackage
   }
 }
 
-case class DepartResponse(department: Department, seqNo: Int) extends WTPackage
-{
+case class DepartResponse(department: Department, seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 18
@@ -454,8 +429,7 @@ case class DepartResponse(department: Department, seqNo: Int) extends WTPackage
   }
 }
 
-case class FriendsResponse(users: List[User], seqNo: Int) extends WTPackage
-{
+case class FriendsResponse(users: List[User], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 15
@@ -477,9 +451,7 @@ case class FriendsResponse(users: List[User], seqNo: Int) extends WTPackage
   }
 }
 
-
-case class RecentContactResponse(users: List[RecentContact], seqNo: Int) extends WTPackage
-{
+case class RecentContactResponse(users: List[RecentContact], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 2
   val commandId = 3
@@ -495,9 +467,7 @@ case class RecentContactResponse(users: List[RecentContact], seqNo: Int) extends
   }
 }
 
-
-case class UnreadMessageCountResponse(unread: List[(String, Int)], seqNo: Int) extends WTPackage
-{
+case class UnreadMessageCountResponse(unread: List[(String, Int)], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 3
   val commandId = 8
@@ -513,10 +483,7 @@ case class UnreadMessageCountResponse(unread: List[(String, Int)], seqNo: Int) e
   }
 }
 
-
-
-case class GroupListResponse(groups: List[Group], seqNo: Int) extends WTPackage
-{
+case class GroupListResponse(groups: List[Group], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 2
@@ -537,8 +504,7 @@ case class GroupListResponse(groups: List[Group], seqNo: Int) extends WTPackage
   }
 }
 
-case class UnreadGroupMessageCountResponse(unread: List[(String, Int)], seqNo: Int) extends WTPackage
-{
+case class UnreadGroupMessageCountResponse(unread: List[(String, Int)], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 6
@@ -554,8 +520,7 @@ case class UnreadGroupMessageCountResponse(unread: List[(String, Int)], seqNo: I
   }
 }
 
-case class RecentGroupListResponse(groups: List[Group], seqNo: Int) extends WTPackage
-{
+case class RecentGroupListResponse(groups: List[Group], seqNo: Int) extends WTPackage {
   val length = 12
   val serverId = 5
   val commandId = 17

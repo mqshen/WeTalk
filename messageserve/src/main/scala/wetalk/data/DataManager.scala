@@ -3,8 +3,8 @@ package wetalk.data
 import java.sql._
 import java.util.Date
 
-import akka.actor.{Props, Actor}
-import com.typesafe.config.{Config, ConfigFactory}
+import akka.actor.{ Props, Actor }
+import com.typesafe.config.{ Config, ConfigFactory }
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -24,8 +24,7 @@ case class GetGroupList(userId: Int)
 case class GetRecentGroupList(userId: Int)
 case class GetGroupInfo(groupId: Int)
 
-object DataManager
-{
+object DataManager {
   def props() = Props(classOf[DataManager])
 }
 
@@ -37,7 +36,7 @@ class DataManager extends Actor {
   val Settings = new Settings(config)
 
   class Settings(config: Config) {
-    val connect =  {
+    val connect = {
       val url = config.getString("mysql.url")
       val username = config.getString("mysql.username")
       val password = config.getString("mysql.password")
@@ -48,24 +47,21 @@ class DataManager extends Actor {
 
   def close(statement: PreparedStatement): Unit = {
     try {
-      if(statement != null) {
+      if (statement != null) {
         statement.close()
       }
-    }
-    catch {
+    } catch {
       case e: Exception =>
         throw e
     }
   }
 
-
   def close(resultSet: ResultSet): Unit = {
     try {
-      if(resultSet != null) {
+      if (resultSet != null) {
         resultSet.close()
       }
-    }
-    catch {
+    } catch {
       case e: Exception =>
         throw e
     }
@@ -82,17 +78,15 @@ class DataManager extends Actor {
         statement.setString(1, userName)
         statement.setString(2, password)
         rs = statement.executeQuery
-        if(rs.next()) {
-          val user = User( rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
+        if (rs.next()) {
+          val user = User(rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
             rs.getString("address"), rs.getInt("status"), rs.getInt("sex"), rs.getInt("type"), rs.getString("phone"),
             rs.getString("mail"), rs.getDate("created"), rs.getDate("updated"))
           sender() ! user
-        }
-        else {
+        } else {
           sender() ! NotFound
         }
-      }
-      finally {
+      } finally {
         close(rs)
         close(statement)
       }
@@ -123,14 +117,13 @@ class DataManager extends Actor {
         rs = statement.executeQuery
         val users = ArrayBuffer[User]()
         while (rs.next()) {
-          val user = User( rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
+          val user = User(rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
             rs.getString("address"), rs.getInt("status"), rs.getInt("sex"), rs.getInt("type"), rs.getString("phone"),
             rs.getString("mail"), rs.getDate("created"), rs.getDate("updated"))
           users.append(user)
         }
         sender() ! users.toList
-      }
-      finally {
+      } finally {
         close(rs)
         close(statement)
       }
@@ -144,13 +137,12 @@ class DataManager extends Actor {
         rs = statement.executeQuery
         val users = ArrayBuffer[RecentContact]()
         while (rs.next()) {
-          val user = RecentContact( rs.getInt("id"), rs.getInt("user_id"), rs.getInt("friend_id"),
+          val user = RecentContact(rs.getInt("id"), rs.getInt("user_id"), rs.getInt("friend_id"),
             rs.getInt("status"), rs.getDate("created"), rs.getDate("updated"))
           users.append(user)
         }
         sender() ! users.toList
-      }
-      finally {
+      } finally {
         close(rs)
         close(statement)
       }
@@ -167,8 +159,7 @@ class DataManager extends Actor {
       statement.setInt(1, groupId)
       statement.setInt(2, userId)
       statement.executeUpdate()
-    }
-    finally {
+    } finally {
       close(statement)
     }
   }
@@ -189,22 +180,19 @@ class DataManager extends Actor {
       statement.setTimestamp(8, group.created)
       statement.setTimestamp(9, group.created)
       val result = statement.executeUpdate()
-      if(result > 0 ) {
+      if (result > 0) {
         val id = getCurrentId()
-        if(id > 0) {
+        if (id > 0) {
           joinGroup(id, group.creator)
           group.users.foreach { userId =>
             joinGroup(id, userId.toInt)
           }
           sender() ! group.copy(id = id)
-        }
-        else
+        } else
           sender() ! None
-      }
-      else
+      } else
         sender() ! None
-    }
-    finally {
+    } finally {
       close(statement)
     }
   }
@@ -222,14 +210,13 @@ class DataManager extends Actor {
         users.append(rs.getString("user_id"))
       }
       users.toList
-    }
-    finally {
+    } finally {
       close(rs)
       close(statement)
     }
   }
 
-  def getGroupInfo(groupId: Int): Option[Group]= {
+  def getGroupInfo(groupId: Int): Option[Group] = {
     val sql = "select name, avatar, description, create_user_id, type, status, count, created, updated from IMGroup where id = ?"
     var statement: PreparedStatement = null
     var rs: ResultSet = null
@@ -241,14 +228,12 @@ class DataManager extends Actor {
         val userIds = getGroupUserIds(groupId)
         val group = Group(groupId, rs.getString("name"), rs.getString("avatar"), rs.getString("description"),
           rs.getInt("create_user_id"), rs.getInt("type"), rs.getInt("status"), rs.getInt("count"), rs.getDate("created"),
-           rs.getDate("updated"), userIds)
+          rs.getDate("updated"), userIds)
         Some(group)
-      }
-      else {
+      } else {
         None
       }
-    }
-    finally {
+    } finally {
       close(rs)
       close(statement)
     }
@@ -263,22 +248,19 @@ class DataManager extends Actor {
       rs = statement.executeQuery
       if (rs.next()) {
         rs.getInt(1)
-      }
-      else {
+      } else {
         0
       }
-    }
-    finally {
+    } finally {
       close(rs)
       close(statement)
     }
   }
 
   def getGroupList(userId: Int, isRecent: Boolean): List[Group] = {
-    val condition = if(isRecent) {
+    val condition = if (isRecent) {
       " and status = 1"
-    }
-    else {
+    } else {
       ""
     }
     val sql = "select a.id, name, avatar, description, create_user_id, type, status, count, a.created, a.updated from " +
@@ -293,14 +275,13 @@ class DataManager extends Actor {
       while (rs.next()) {
         val groupId = rs.getInt("id")
         val userIds = getGroupUserIds(groupId)
-        val group = Group( groupId, rs.getString("name"), rs.getString("avatar"),
+        val group = Group(groupId, rs.getString("name"), rs.getString("avatar"),
           rs.getString("description"), rs.getInt("create_user_id"), rs.getInt("type"), rs.getInt("status"), rs.getInt("count"),
           rs.getDate("created"), rs.getDate("updated"), userIds)
         groups.append(group)
       }
       groups.toList
-    }
-    finally {
+    } finally {
       close(rs)
       close(statement)
     }

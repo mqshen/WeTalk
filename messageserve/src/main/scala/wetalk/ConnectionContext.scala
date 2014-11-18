@@ -1,6 +1,6 @@
 package wetalk
 
-import spray.http.{HttpOrigin, Uri}
+import spray.http.{ HttpOrigin, Uri }
 
 /**
  * Created by goldratio on 11/6/14.

@@ -4,12 +4,12 @@ import java.nio.ByteOrder
 import java.util.Date
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{ Actor, ActorRef }
 import akka.pattern.ask
 import akka.event.LoggingAdapter
 import akka.io.Tcp.Write
-import akka.util.Timeout
-import spray.http.{HttpOrigin, Uri}
+import akka.util.{ ByteString, Timeout }
+import spray.http.{ HttpOrigin, Uri }
 import wetalk.data._
 
 import scala.collection.immutable
@@ -29,13 +29,14 @@ object ConnectionSession {
     def sessionId: String
   }
 
+  final case class OnFrame(sessionId: String, payload: ByteString) extends Command
+
   final case class CreateSession(sessionId: String, user: User, transportConnection: ActorRef) extends Command
   final case class Connecting(sessionId: String, transportConnection: ActorRef) extends Command with Event
   final case class SendPackage(sessionId: String, wtPackage: WTPackage) extends Command with Event
 
   final case class DispatchPackage(userId: String, wtPackage: WTPackage) extends DispatchCommand with Event
   final case class GroupDispatchPackage(userId: String, users: List[String], wtPackage: WTPackage) extends DispatchCommand with Event
-
 
   final class State(var sessionId: String, var connection: ActorRef, var topics: immutable.Set[String]) extends Serializable {
     override def equals(other: Any) = {
@@ -67,7 +68,6 @@ trait ConnectionSession { _: Actor =>
   def cacheActor: ActorRef
   def recoveryFinished: Boolean
   def recoveryRunning: Boolean
-
 
   def sessionId: String
   def user: User
@@ -115,9 +115,11 @@ trait ConnectionSession { _: Actor =>
       connection ! Write(request.packageData())
   }
 
-
   def handlerPackage(result: WTPackage) = {
     val serverConnection = connection
+    if (result.seqNo % 1000 == 0) {
+      println(s"receive ${user.id} seqNo: ${result.seqNo}")
+    }
     result match {
       case request: HeartbeatRequest =>
         val response = HeartbeatResponse(request.seqNo)
@@ -125,18 +127,18 @@ trait ConnectionSession { _: Actor =>
       case request: MessageSend =>
         val response = MessageSendAckResponse(request.message.seqNo, request.message.timestamp, request.seqNo)
 
-        val dispatchResponse = MessageReceiveResponse(request.message, 0)
-        if(request.message.msgType == 17) {
-          val f = databaseActor ? GetGroupInfo(request.message.toId.toInt)
-          f onSuccess {
-            case group: Group =>
-              context.parent ! GroupDispatchPackage(user.id.toString, group.users, dispatchResponse)
-            case e =>
-          }
-        }
-        else {
-          context.parent ! DispatchPackage(request.message.toId, dispatchResponse)
-        }
+        //        val dispatchResponse = MessageReceiveResponse(request.message, 0)
+        //        if(request.message.msgType == 17) {
+        //          val f = databaseActor ? GetGroupInfo(request.message.toId.toInt)
+        //          f onSuccess {
+        //            case group: Group =>
+        //              context.parent ! GroupDispatchPackage(user.id.toString, group.users, dispatchResponse)
+        //            case e =>
+        //          }
+        //        }
+        //        else {
+        //          context.parent ! DispatchPackage(request.message.toId, dispatchResponse)
+        //        }
         serverConnection ! Write(response.packageData())
       case request: DepartmentRequest =>
         val f = databaseActor ? GetDepartment(1)

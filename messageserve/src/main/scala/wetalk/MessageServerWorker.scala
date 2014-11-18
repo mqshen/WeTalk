@@ -5,11 +5,12 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.pattern.ask
-import akka.actor.{Props, ActorRef, Actor, ActorLogging}
-import akka.io.Tcp.{Write, PeerClosed, Received}
-import akka.util.{ByteString, Timeout}
+import akka.actor.{ Props, ActorRef, Actor, ActorLogging }
+import akka.io.Tcp.{ Write, PeerClosed, Received }
+import akka.util.{ ByteString, Timeout }
 import wetalk.ConnectionSession.SendPackage
-import wetalk.data.{User, UserAuth}
+import wetalk.data.{ User, UserAuth }
+import wetalk.frame.PackageFrame
 
 import scala.util.control.NonFatal
 
@@ -20,7 +21,7 @@ object MessageServerWorker {
   def props(databaseActor: ActorRef, sessionRegion: ActorRef) = Props(classOf[MessageServerWorker], databaseActor, sessionRegion)
 }
 
-class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) extends Actor with ActorLogging{
+class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) extends Actor with ActorLogging {
 
   //val soConnContext = new ConnectingContext(null, sender(), sessionRegion)
   var sessionId: String = null
@@ -28,15 +29,17 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
   implicit val timeout = Timeout(120, TimeUnit.SECONDS)
   import context.dispatcher
 
+  implicit lazy val soConnContext = new ConnectingContext(null, self, sessionRegion)
 
   def receive = {
+    case frame @ PackageFrame(ok) =>
+      log.debug("Got {}", frame)
     case Received(data) =>
       try {
         val it = data.iterator
         it.getInt
         handleParsingResult(WTRequestParser(it))
-      }
-      catch {
+      } catch {
         case e: ExceptionWithErrorInfo =>
           e.printStackTrace()
         case NonFatal(e) =>
@@ -49,7 +52,6 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
     case t =>
       println(s"do know type${t}")
   }
-
 
   def handleParsingResult(result: WTPackage) = {
     val serverConnection = sender()
@@ -74,11 +76,9 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
             serverConnection ! Write(response.packageData())
         }
       case _ =>
-        //TODO close connection
+      //TODO close connection
     }
   }
-
-  var count = 0
 
   var hasRemainData = false
   var remainData: ByteString = null
@@ -86,46 +86,42 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
 
   def handleMessage: Receive = {
     case Received(data) =>
-      count = count + 1
       val remainLength = data.length
       try {
         var start = 0
-        if(hasRemainData) {
+        if (hasRemainData) {
           val dataLength = remainData.length
           val tempLength = data.length
-          if(dataLength + tempLength < 4) {
+          if (dataLength + tempLength < 4) {
             val frameBuilder = ByteString.newBuilder
             frameBuilder.append(remainData)
             frameBuilder.append(data)
             remainData = frameBuilder.result()
             start = data.length
-          }
-          else {
+          } else {
             val lastLength = if (dataLength < 4) {
               val length = data.slice(0, 4 - dataLength)
               val frameBuilder = ByteString.newBuilder
               frameBuilder.append(remainData)
               frameBuilder.append(length)
               frameBuilder.result().iterator.getInt
-            }
-            else {
+            } else {
               remainData.iterator.getInt
             }
-            if(dataLength + tempLength < lastLength) {
+            if (dataLength + tempLength < lastLength) {
               val frameBuilder = ByteString.newBuilder
               frameBuilder.append(remainData)
               frameBuilder.append(data)
               remainData = frameBuilder.result()
               start = data.length
-            }
-            else {
+            } else {
               val frameBuilder = ByteString.newBuilder
-              if(dataLength > 4) {
-                frameBuilder.append(remainData.slice(4, dataLength ))
+              if (dataLength > 4) {
+                frameBuilder.append(remainData.slice(4, dataLength))
               }
               start = Math.max(0, 4 - dataLength)
 
-              val tempData = data.slice(start, lastLength - dataLength )
+              val tempData = data.slice(start, lastLength - dataLength)
               frameBuilder.append(tempData)
               val result = frameBuilder.result()
               if (result.length < lastLength - 4) {
@@ -135,7 +131,7 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
 
               try {
                 val tempPackage = WTRequestParser(result.iterator)
-                if (tempPackage.isInstanceOf[MessageServerRequest] ) {
+                if (tempPackage.isInstanceOf[MessageServerRequest]) {
                   //println("remainData" + remainData)
                   //println("result" + result)
                   //println("lastData" + lastData)
@@ -143,8 +139,7 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
                   println("test")
                 }
                 sessionRegion ! SendPackage(sessionId, tempPackage)
-              }
-              catch {
+              } catch {
                 case e =>
                   //println("remainData" + remainData)
                   //println("result" + result)
@@ -158,32 +153,30 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
             }
           }
         }
-        while(start <= remainLength - 1) {
+        while (start <= remainLength - 1) {
           if (start + 4 > remainLength) {
             hasRemainData = true
-            remainData = data.slice(start , remainLength)
-            if(remainData.length > 100) {
+            remainData = data.slice(start, remainLength)
+            if (remainData.length > 100) {
               println("test")
             }
             start = remainLength
-          }
-          else {
+          } else {
             val packageLength = data.slice(start, start + 4).iterator.getInt
 
             val end = start + packageLength
-            if(end > remainLength) {
+            if (end > remainLength) {
               hasRemainData = true
               remainData = data.slice(start, remainLength)
-              if(remainData.length > 100) {
+              if (remainData.length > 100) {
                 println("test")
               }
               start = remainLength
               lastData = data
-            }
-            else {
+            } else {
               val packageData = data.slice(start + 4, end)
               val tempPackage = WTRequestParser(packageData.iterator)
-              if (tempPackage.isInstanceOf[MessageServerRequest] ) {
+              if (tempPackage.isInstanceOf[MessageServerRequest]) {
                 //println(data)
                 println("test")
               }
@@ -192,8 +185,7 @@ class MessageServerWorker(databaseActor: ActorRef, sessionRegion: ActorRef) exte
             }
           }
         }
-      }
-      catch {
+      } catch {
         case e: ExceptionWithErrorInfo =>
           e.printStackTrace()
         case NonFatal(e) =>

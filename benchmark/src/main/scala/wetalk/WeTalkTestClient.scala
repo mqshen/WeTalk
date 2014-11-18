@@ -4,11 +4,11 @@ import java.net.InetSocketAddress
 import java.nio.ByteOrder
 import java.util.Date
 
-import akka.actor.{ActorRef, Actor}
+import akka.actor.{ ActorRef, Actor }
 import akka.actor.Actor.Receive
-import akka.io.{IO, Tcp}
-import akka.io.Tcp.{Write, Received}
-import akka.util.{ByteIterator, ByteString}
+import akka.io.{ IO, Tcp }
+import akka.io.Tcp.{ Write, Received }
+import akka.util.{ ByteIterator, ByteString }
 import wetalk.data.Message
 
 import scala.concurrent.forkjoin.ThreadLocalRandom
@@ -22,17 +22,14 @@ import wetalk.util._
  * Created by goldratio on 11/10/14.
  */
 
-
-
-
 object WTResponseParser {
   val headerLength = 12
 
-  def apply(it: ByteIterator)(implicit byteOrder : java.nio.ByteOrder): WTPackage = {
+  def apply(it: ByteIterator)(implicit byteOrder: java.nio.ByteOrder): WTPackage = {
     val sId = it.getShort
     val cId = it.getShort
     val version = it.getShort
-    val seqNo = it.getShort
+    val seqNo = it.getInt
     //println(s"sid: ${sId} cId: $cId version: ${version} seqNo: ${seqNo}")
     sId match {
       case 1 => {
@@ -49,7 +46,7 @@ object WTResponseParser {
             val token = it.getString()
 
             val currentTime = new Date()
-            LoginResponse(User(userId.toInt, name,"",avatar,"",0,0,0,telphone,email,currentTime, currentTime), seqNo)
+            LoginResponse(User(userId.toInt, name, "", avatar, "", 0, 0, 0, telphone, email, currentTime, currentTime), seqNo)
         }
       }
       case 2 => {
@@ -73,7 +70,7 @@ object WTResponseParser {
             val content = it.getString()
             val attachContent = it.getString()
             val timestamp = System.currentTimeMillis()
-            val message =  Message(msgNo, fromId, toId, timestamp, msgType, content, attachContent)
+            val message = Message(msgNo, fromId, toId, timestamp, msgType, content, attachContent)
             MessageSend(message, seqNo)
           case 2 =>
             val msgNo = it.getInt
@@ -93,7 +90,7 @@ object WTResponseParser {
             val name = it.getString()
             val avatar = it.getString()
             val size = it.getInt
-            val users = (0 until(size)).map(_ => it.getString()).toList
+            val users = (0 until (size)).map(_ => it.getString()).toList
 
             CreateTempGroupRequest(name, avatar, users, seqNo)
           case 16 =>
@@ -113,10 +110,12 @@ object WTResponseParser {
 
 }
 
-object WeTalkTestClient  {
+object WeTalkTestClient {
 
   val userIDs = (1 until 17).map(i => i.toString).toArray
-  val users = Array("mqshen@126.com" , "goldratio87@gmail.com", "test@126.com",
+  val users = Array("mqshen@126.com",
+    "goldratio87@gmail.com",
+    "test@126.com",
     "test1@126.com",
     "test2@126.com",
     "test3@126.com",
@@ -315,16 +314,13 @@ object WeTalkTestClient  {
     "test196@126.com",
     "test197@126.com",
     "test198@126.com",
-    "test199@126.com"
-  )
+    "test199@126.com")
 
   private var _nextId = 0
   private def nextId = {
     _nextId += 1
     _nextId
   }
-
-
 
   case object OnOpen
   case object OnClose
@@ -355,19 +351,18 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
         val it = data.iterator
 
         it.getInt
-      }
-      catch {
+      } catch {
         case e: ExceptionWithErrorInfo =>
-        case NonFatal(e) =>
+        case NonFatal(e)               =>
         case e: Throwable =>
           e.printStackTrace()
       }
 
-
     case c @ Connected(remote, local) =>
       val connection = sender()
       connection ! Register(self)
-      val login = LoginRequest(user, "f2720188fc444312d7dec4c3bb82f438" , 0, 0, "1.0" ,0).packageData
+      println(s"user: ${user}")
+      val login = LoginRequest(user, "f2720188fc444312d7dec4c3bb82f438", 0, 0, "1.0", 0).packageData
       connection ! Write(login)
       _connection = sender()
       context become worker
@@ -384,49 +379,45 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
       val remainLength = data.length
       try {
         var start = 0
-        if(hasRemainData) {
+        if (hasRemainData) {
           val dataLength = remainData.length
           val tempLength = data.length
-          if(dataLength + tempLength < 4) {
+          if (dataLength + tempLength < 4) {
             val frameBuilder = ByteString.newBuilder
             frameBuilder.append(remainData)
             frameBuilder.append(data)
             remainData = frameBuilder.result()
             start = data.length
-          }
-          else {
+          } else {
             val lastLength = if (dataLength < 4) {
               val length = data.slice(0, 4 - dataLength)
               val frameBuilder = ByteString.newBuilder
               frameBuilder.append(remainData)
               frameBuilder.append(length)
               frameBuilder.result().iterator.getInt
-            }
-            else {
+            } else {
               remainData.iterator.getInt
             }
-            if(dataLength + tempLength < lastLength) {
+            if (dataLength + tempLength < lastLength) {
               val frameBuilder = ByteString.newBuilder
               frameBuilder.append(remainData)
               frameBuilder.append(data)
               remainData = frameBuilder.result()
               start = data.length
-            }
-            else {
+            } else {
               val frameBuilder = ByteString.newBuilder
-              if(dataLength > 4) {
-                frameBuilder.append(remainData.slice(4, dataLength ))
+              if (dataLength > 4) {
+                frameBuilder.append(remainData.slice(4, dataLength))
               }
               start = Math.max(0, 4 - dataLength)
 
-              val tempData = data.slice(start, lastLength - dataLength )
+              val tempData = data.slice(start, lastLength - dataLength)
               frameBuilder.append(tempData)
               val result = frameBuilder.result()
               try {
                 val receive = WTResponseParser(result.iterator)
                 handleParsingResult(receive)
-              }
-              catch {
+              } catch {
                 case e =>
                   e.printStackTrace()
               }
@@ -436,41 +427,37 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
             }
           }
         }
-        while(start <= remainLength - 1) {
+        while (start <= remainLength - 1) {
           if (start + 4 > remainLength) {
             hasRemainData = true
             remainData = data.slice(start, remainLength)
             start = remainLength
-          }
-          else {
+          } else {
             val packageLength = data.slice(start, start + 4).iterator.getInt
 
             val end = start + packageLength
-            if(end > remainLength) {
+            if (end > remainLength) {
               hasRemainData = true
               remainData = data.slice(start, remainLength)
               //println("remainData:" + remainData)
               start = remainLength
               lastLastData = lastData
               lastData = data
-            }
-            else {
+            } else {
               try {
                 val packageData = data.slice(start + 4, end)
                 val receive = WTResponseParser(packageData.iterator)
                 handleParsingResult(receive)
                 start = end
                 lastData = data
-              }
-              catch {
+              } catch {
                 case e =>
                   e.printStackTrace()
               }
             }
           }
         }
-      }
-      catch {
+      } catch {
         case e: ExceptionWithErrorInfo =>
           e.printStackTrace()
         case NonFatal(e) =>
@@ -483,6 +470,9 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
       val message = Message(count, user, toId, System.currentTimeMillis(), 1, "test", "")
       count = count + 1
 
+      if (count % 1000 == 0) {
+        println(s"send ${user} seqNo: ${count}")
+      }
       _connection ! Write(MessageSend(message, count).packageData())
 
     case p: WTPackage =>
@@ -493,7 +483,7 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
       connection ! Write(data)
     case CommandFailed(w: Write) =>
       // O/S buffer was full
-      println( "write failed")
+      println("write failed")
   }
 
   def handleParsingResult(result: WTPackage) = {
@@ -502,14 +492,17 @@ class WeTalkTestClient(remote: InetSocketAddress, commander: ActorRef) extends A
         commander ! OnOpen
       case response: MessageSendAckResponse =>
         val messageArrivedAt = System.currentTimeMillis - response.timestamp
+        if (result.seqNo % 1000 == 0) {
+          println(s"receive: ${user} seqNo: ${response.seqNo}")
+        }
         commander ! MessageArrived(messageArrivedAt)
       case t =>
-        //println(t)
+      //println(t)
     }
   }
 
 }
 
 object Test extends App {
-  12 until 200 foreach { i => println(s"test${ i }@126.com,")}
+  12 until 200 foreach { i => println(s"test${i}@126.com,") }
 }

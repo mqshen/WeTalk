@@ -4,10 +4,11 @@ import java.nio.ByteOrder
 import java.util.concurrent.TimeUnit
 
 import akka.pattern.ask
-import akka.actor.{Props, ActorRef, Actor}
+import akka.actor.{ Props, ActorRef, Actor }
 import akka.io.Tcp
 import akka.util.Timeout
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
+import spray.can.websocket.FrameParsing
 import wetalk.data._
 
 import scala.util.control.NonFatal
@@ -16,8 +17,7 @@ import scala.collection.JavaConversions._
 /**
  * Created by goldratio on 11/2/14.
  */
-object MessageHandler
-{
+object MessageHandler {
   def props(databaseActor: ActorRef, cacheActor: ActorRef) = Props(classOf[MessageHandler], databaseActor, cacheActor)
 }
 
@@ -27,8 +27,6 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
   implicit val timeout = Timeout(120, TimeUnit.SECONDS)
   import context.dispatcher
 
-
-
   val config = ConfigFactory.load().getConfig("wetalk")
   val Settings = new Settings(config)
 
@@ -37,7 +35,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
       val hosts = config.getStringList("messageServer.host")
       //val host = config.getString("messageServer.host")
       val port = config.getInt("messageServer.port")
-      hosts.map{ host =>
+      hosts.map { host =>
         (host, port.toShort)
       }.toList
     }
@@ -46,28 +44,16 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
   import Tcp._
   def receive = {
     case Received(data) =>
-      try {
-        val it = data.iterator
-        it.getInt
-        handleParsingResult(WTRequestParser(it))
-      }
-      catch {
-        case e: ExceptionWithErrorInfo =>
-          handleError(0, e.info)
-        case NonFatal(e) =>
-          handleError(1, ErrorInfo("Illegal request", e.getMessage))
-        case e: Throwable =>
-          e.printStackTrace()
-      }
+      //val test = pipeline.injectEvent(data)
+      println(data)
     case PeerClosed =>
       context stop self
   }
 
-
   def handleParsingResult(result: WTPackage) = {
     val serverConnection = sender()
     result match {
-      case request: LoginRequest=>
+      case request: LoginRequest =>
         val f = databaseActor ? UserAuth(request.userName, request.password)
         f onSuccess {
           case user: User =>
@@ -111,7 +97,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         user.map { u =>
           val f = databaseActor ? GetRecentContract(u.id)
           f onSuccess {
-            case contact: List[RecentContact]=>
+            case contact: List[RecentContact] =>
               val response = RecentContactResponse(contact, result.seqNo)
               serverConnection ! Write(response.packageData())
             case e =>
@@ -128,7 +114,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         user.map { u =>
           val f = databaseActor ? GetGroupList(u.id)
           f onSuccess {
-            case groups: List[Group]=>
+            case groups: List[Group] =>
               val response = GroupListResponse(groups, result.seqNo)
               serverConnection ! Write(response.packageData())
             case e =>
@@ -145,7 +131,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         user.map { u =>
           val f = databaseActor ? GetRecentGroupList(u.id)
           f onSuccess {
-            case groups: List[Group]=>
+            case groups: List[Group] =>
               val response = RecentGroupListResponse(groups, result.seqNo)
               serverConnection ! Write(response.packageData())
             case e =>
@@ -158,7 +144,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
               serverConnection ! Write(response.packageData())
           }
         }
-      case request: UnreadMessageCountRequest=>
+      case request: UnreadMessageCountRequest =>
         user.map { u =>
           val f = cacheActor ? UnreadMessageCount(u.id)
           f onSuccess {
@@ -175,7 +161,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
               serverConnection ! Write(response.packageData())
           }
         }
-      case request: UnreadGroupMessageCountRequest=>
+      case request: UnreadGroupMessageCountRequest =>
         user.map { u =>
           val f = cacheActor ? UnreadGroupMessageCount(u.id)
           f onSuccess {
@@ -196,7 +182,7 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         user.map { u =>
           val f = databaseActor ? GetFriend(u.id)
           f onSuccess {
-            case users: List[User]=>
+            case users: List[User] =>
               val response = FriendsResponse(users, result.seqNo)
               serverConnection ! Write(response.packageData())
             case e =>
@@ -211,7 +197,6 @@ class MessageHandler(databaseActor: ActorRef, cacheActor: ActorRef) extends Acto
         }
     }
   }
-
 
   def handleError(status: Int, info: ErrorInfo): Unit = {
     //log.warning("Illegal request, responding with status '{}': {}", status, info.formatPretty)

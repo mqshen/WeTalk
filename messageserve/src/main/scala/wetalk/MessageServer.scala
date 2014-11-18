@@ -2,10 +2,10 @@ package wetalk
 
 import java.net.InetSocketAddress
 
-import akka.actor.{ActorLogging, Actor, Props, ActorSystem}
+import akka.actor.{ ActorLogging, Actor, Props, ActorSystem }
 import akka.io.Tcp._
-import akka.io.{Tcp, IO}
-import wetalk.data.{CacheManager, DataManager}
+import akka.io.{ Tcp, IO }
+import wetalk.data.{ CacheManager, DataManager }
 
 /**
  * Created by goldratio on 11/3/14.
@@ -28,8 +28,8 @@ class MessageActor extends Actor with ActorLogging {
       context stop self
 
     case c @ Connected(remote, local) =>
-      //val handler = context.actorOf(MessageHandler.props(databaseActor, cacheActor))
-      val handler = context.actorOf(MessageServerWorker.props(databaseActor, sessionRegion))
+      val handler = context.actorOf(MessageHandler.props(databaseActor, cacheActor))
+      //val handler = context.actorOf(MessageServerWorker.props(databaseActor, sessionRegion))
       val connection = sender()
       connection ! Register(handler)
   }

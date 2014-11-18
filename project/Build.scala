@@ -65,6 +65,18 @@ object Build extends sbt.Build {
     .settings(unmanagedSourceDirectories in Test += baseDirectory.value / "multi-jvm/scala")
     .settings(XitrumPackage.skip: _*)
     .configs(MultiJvm)
+    .dependsOn(wetalkBase, messageServer)
+
+
+  lazy val benchmarkTest = Project("wetalk-benchmark-test", file("benchmarkTest"))
+    .settings(basicSettings: _*)
+    .settings(formatSettings: _*)
+    .settings(releaseSettings: _*)
+    .settings(SbtMultiJvm.multiJvmSettings ++ multiJvmSettings: _*)
+    .settings(libraryDependencies ++= Dependencies.all)
+    .settings(unmanagedSourceDirectories in Test += baseDirectory.value / "multi-jvm/scala")
+    .settings(XitrumPackage.skip: _*)
+    .configs(MultiJvm)
     .dependsOn(wetalkBase)
 
   lazy val basicSettings = Seq(
@@ -174,7 +186,7 @@ object Dependencies {
   val spray_json = "io.spray" %% "spray-json" % "1.2.6" 
   val akka_actor = "com.typesafe.akka" %% "akka-actor" % AKKA_VERSION
   val akka_contrib = "com.typesafe.akka" %% "akka-contrib" % AKKA_VERSION
-  val akka_stream = "com.typesafe.akka" %% "akka-stream-experimental" % "0.7"
+  val akka_stream = "com.typesafe.akka" %% "akka-stream-experimental" % "0.10"
   val parboiled = "org.parboiled" %% "parboiled-scala" % "1.1.5"
   val parboiled2 = "org.parboiled" %% "parboiled" % "2.0-M2" //changing ()
   val akka_testkit = "com.typesafe.akka" %% "akka-testkit" % AKKA_VERSION % "test"
@@ -187,9 +199,14 @@ object Dependencies {
   val logback = "ch.qos.logback" % "logback-classic" % "1.0.13" //% "runtime"
   val akka_slf4j = "com.typesafe.akka" %% "akka-slf4j" % AKKA_VERSION //% "runtime"
 
+  val playJson = "com.typesafe.play" %% "play-json" % "2.3.0"
+
   val mysql = "mysql" % "mysql-connector-java" % "5.1.29"
   val redis = "net.debasishg" %% "redisclient" % "2.13"
 
-  val all = Seq(spray_websocket, spray_can, spray_json, akka_actor, akka_contrib, akka_stream,
-    parboiled, akka_testkit, akka_multinode_testkit, scalatest, apache_math, caliper, logback, akka_slf4j, mysql, redis)
+  val scala_parser = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2"
+
+  val all = Seq(spray_websocket, akka_actor, akka_contrib, akka_stream,
+    parboiled, akka_testkit, akka_multinode_testkit, scalatest, apache_math, caliper,
+    logback, akka_slf4j, mysql, redis, scala_parser, playJson)
 }

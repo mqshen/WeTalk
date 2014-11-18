@@ -2,7 +2,7 @@ package wetalk
 
 import java.nio.ByteOrder
 
-import akka.util.{ByteStringBuilder, ByteIterator, ByteString}
+import akka.util.{ ByteStringBuilder, ByteIterator, ByteString }
 
 /**
  * Created by goldratio on 11/3/14.

@@ -42,7 +42,7 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
           case None      => log.warning("Failed to select actor {}", sessionId)
         }
       }
-    case cmd: ConnectionSession.GroupDispatchPackage=>
+    case cmd: ConnectionSession.GroupDispatchPackage =>
       cmd.users.filter(userId => userId != cmd.userId).foreach { userId =>
         sessions.get(userId).map { sessionId =>
           context.child(sessionId) match {
