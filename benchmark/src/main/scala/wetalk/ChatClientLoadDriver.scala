@@ -231,7 +231,6 @@ class ChatClientLoadDriver extends Actor with ActorLogging {
     roundContext = RoundContext(
       Some(system.scheduler.scheduleOnce(postTestReceptionTimeout.seconds, self, ReceivingTimeout)),
       statistics, overallEffectiveRate)
-    print("send end")
   }
 
   private def createNextBunchClients() {

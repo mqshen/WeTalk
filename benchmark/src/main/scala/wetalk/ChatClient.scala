@@ -208,7 +208,7 @@ class ChatClient(commander: ActorRef) extends Actor with ActorLogging {
     case e: ChatMessageSend =>
       _connection ! protocol.LoginResponse(2)
     case SendMessage =>
-      _connection ! SendChatMessage(2, "t", "3", "test", timestamp = System.currentTimeMillis())
+      _connection ! SendChatMessage(System.currentTimeMillis(), "t", "3", "test", timestamp = System.currentTimeMillis())
   }
 
   private def createIncomingFlow(connection: StreamTcp.OutgoingTcpConnection, connectionActor: ActorRef) {

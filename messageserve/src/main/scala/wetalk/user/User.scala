@@ -47,38 +47,6 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef) extends Actor wit
     case _ =>
       println("tttt")
   }
-  //
-  //  startWith(AuthenticationPending, EmptyState)
-  //
-  //  when(AuhenticationPending) {
-  //    case Event(Authenticate(password), _) => password match {
-  //      case `serverPassword` =>
-  //        goto(RegistrationPending)
-  //      case _ =>
-  //        sender ! InvalidPassword
-  //        stay()
-  //    }
-  //  }
-  //
-  //  when(RegistrationPending) {
-  //    case Event(Authenticate(_), _) =>
-  //      sender ! new AlreadyAuthenticatedMessage("todo")
-  //      stay()
-  //    case Event(SetUsername(username), _) =>
-  //      log.info(s"STUB: User wishes to change nickname to $username")
-  //      stay()
-  //  }
-  //
-  //  whenUnhandled {
-  //    case Event(Quit(message), _) =>
-  //      val quitMessage = message match {
-  //        case Some(msg) => s"with message '$msg'"
-  //        case None => "with no specific message"
-  //      }
-  //      log.info(s"User wishes to close connection $quitMessage.")
-  //      sender ! Quit
-  //      stop()
-  //  }
 
 }
 

@@ -31,11 +31,15 @@ object MessageParser extends RegexParsers {
       UserMessage(prefix = p, jsonData = d)
   }
 
-  def parse(text: String): Try[UserMessage] = parseAll(message, text) match {
-    case Success(message, _) =>
-      scala.util.Success(message)
-    case NoSuccess(msg, _) =>
-      scala.util.Failure(new IllegalArgumentException(msg))
+  def parse(text: String): Try[UserMessage] = {
+    parseAll(message, text) match {
+      case Success(message, _) =>
+        //val currentTime = System.currentTimeMillis()
+        //println(s"message parse time:${currentTime - message.prefix.id}")
+        scala.util.Success(message)
+      case NoSuccess(msg, _) =>
+        scala.util.Failure(new IllegalArgumentException(msg))
+    }
   }
 
 }

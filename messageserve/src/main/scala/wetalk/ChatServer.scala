@@ -54,11 +54,10 @@ class ChatServer(shutdownSystemOnError: Boolean = false) extends Actor with Acto
   }
 
   private def createConnectionFlow(serverBinding: StreamTcp.TcpServerBinding) {
-    Source(serverBinding.connectionStream)
-      .foreach { connection ⇒
-        log.info(s"Client connected from: ${connection.remoteAddress}")
-        handleNewConnection(connection)
-      }
+    Source(serverBinding.connectionStream).foreach { connection =>
+      log.info(s"Client connected from: ${connection.remoteAddress}")
+      handleNewConnection(connection)
+    }
   }
 
   private def handleNewConnection(connection: IncomingTcpConnection) {

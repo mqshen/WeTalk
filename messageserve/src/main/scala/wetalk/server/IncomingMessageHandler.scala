@@ -30,7 +30,7 @@ class IncomingMessageHandler(connection: ActorRef, userActor: ActorRef, remoteAd
   implicit val sender = connection
 
   def handleIncomingIrcMessage(message: UserMessage) = {
-    log.debug(s"$remoteAddress: $message")
+    //log.debug(s"$remoteAddress: $message")
     Command(message.prefix.opCode).fold(connection ! UnknownCommandMessage(serverName, message.prefix.opCode))({
       case Disconnect =>
       case Connect =>
@@ -39,7 +39,11 @@ class IncomingMessageHandler(connection: ActorRef, userActor: ActorRef, remoteAd
       case Heartbeat =>
         userActor ! HeartbeatMessage
       case Message =>
+//        val starTime = System.currentTimeMillis()
         val chatMessage = Json.parse(message.jsonData).as[ChatMessage]
+//        val timeInterval = System.currentTimeMillis() - chatMessage.timestamp
+//        val parserTime = System.currentTimeMillis() - starTime
+//        log.debug(s" parse time:$parserTime, trade time:$timeInterval")
         userActor ! (chatMessage, message.prefix.id)
       case GroupMessage =>
       case UserCommand  =>

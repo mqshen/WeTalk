@@ -22,9 +22,9 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
   private val firstByteOfDelimiter = delimiter.head
 
   def apply(fragment: ByteString): List[ByteString] = {
-
     val parts = extractParts(fragment, Nil)
     buffer = buffer.compact
+
     parts
   }
 
