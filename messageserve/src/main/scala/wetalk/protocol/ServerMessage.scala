@@ -55,9 +55,19 @@ case class ChatMessage(from: String, to: String, content: String, attach: Option
   val resultCode = 0
   val errorMessage = ""
 
+  val jsonContent = Json.obj("from" -> from, "to" -> to, "content" -> content, "timestamp" -> timestamp)
+
+  override def toString = s"3:0:$jsonContent"
+
+}
+
+case class DispatchChatMessage(to: String, message: ChatMessage) extends ServerMessage {
+  val resultCode = 0
+  val errorMessage = ""
+
   val jsonContent = Json.obj("sdf" -> "")
 
-  override def toString = s"3:"
+  override def toString = s"3:0:$jsonContent"
 
 }
 
@@ -79,13 +89,13 @@ case class LoginRequest(seqNo: Long, userName: String, password: String) extends
   override def toString = s"1:$seqNo:$jsonContent"
 }
 
-case class LoginResponse(seqNo: Long) extends ServerMessage {
+case class LoginResponse(seqNo: String) extends ServerMessage {
   val resultCode = 0
   val errorMessage = ""
 
-  val jsonContent = Json.obj("sdf" -> "")
+  val jsonContent = Json.obj("seqNo" -> seqNo)
 
-  override def toString = s"1:$seqNo:$json"
+  override def toString = s"1:0:$json"
 }
 
 case class ChatAckResponse(seqNo: Long, timestamp: Long) extends ServerMessage {

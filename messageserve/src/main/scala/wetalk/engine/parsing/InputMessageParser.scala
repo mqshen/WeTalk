@@ -1,13 +1,16 @@
-package wetalk.protocol
+package wetalk.engine.parsing
 
-import scala.concurrent.Future
+
+import wetalk.engine.parsing.ParserOutput.{UserMessage, MessagePrefix}
+
 import scala.util.Try
 import scala.util.parsing.combinator._
 
 /**
- * Created by goldratio on 11/18/14.
+ * Created by goldratio on 11/23/14.
  */
-object MessageParser extends RegexParsers {
+
+object InputMessageParser extends RegexParsers {
 
   override protected val whiteSpace = """[ ]+""".r
 

@@ -1,7 +1,7 @@
-package wetalk.protocol
+package wetalk.parser
 
 /**
- * Created by goldratio on 11/18/14.
+ * Created by goldratio on 11/24/14.
  */
 
 import akka.util.ByteString
@@ -24,6 +24,9 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
   var lastTime: Long = 0
 
   def apply(fragment: ByteString): List[ByteString] = {
+    val bytes = new Array[Byte](fragment.length)
+    fragment.iterator.getBytes(bytes)
+    println(new String(bytes))
     val currentTimestamp = System.currentTimeMillis()
     val parts = extractParts(fragment, Nil)
     buffer = buffer.compact
@@ -62,7 +65,8 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
             s"Received too large frame of size $minSize (max = $maxSize)")
           buffer ++= nextChunk
           acc
-        } else if (matchPosition + delimiter.size > nextChunk.size) {
+        }
+        else if (matchPosition + delimiter.size > nextChunk.size) {
           val delimiterMatchLength = nextChunk.size - matchPosition
           if (nextChunk.drop(matchPosition) == delimiter.take(delimiterMatchLength)) {
             buffer ++= nextChunk
@@ -95,3 +99,4 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
     }
   }
 }
+

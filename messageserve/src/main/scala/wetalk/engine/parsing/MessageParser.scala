@@ -1,17 +1,24 @@
-package wetalk.protocol
+package wetalk.engine.parsing
 
-/**
- * Created by goldratio on 11/18/14.
- */
+import java.nio.ByteOrder
 
+import akka.stream.Transformer
 import akka.util.ByteString
+import wetalk.engine.parsing.ParserOutput.{UserMessage, MessageEnd, MessageOutput}
 
 import scala.annotation.tailrec
+import scala.collection.immutable
+import scala.collection.mutable.ListBuffer
 
-class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Boolean = false) {
+/**
+ * Created by goldratio on 11/21/14.
+ */
+class MessageParser extends Transformer[ByteString, UserMessage] {
+  implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
-  require(maxSize > 0, "maxSize must be positive")
-  require(delimiter.nonEmpty, "delimiter must not be empty")
+  val delimiter: ByteString = ByteString("\r\n".getBytes("UTF-8"))
+  val includeDelimiter: Boolean = false
+  val maxSize: Int = 1000
 
   private val singleByteDelimiter: Boolean = delimiter.size == 1
 
@@ -21,9 +28,12 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
 
   private val firstByteOfDelimiter = delimiter.head
 
+  private[this] var terminated = false
+  override def isComplete = terminated
+
   var lastTime: Long = 0
 
-  def apply(fragment: ByteString): List[ByteString] = {
+  def onNext(fragment: ByteString): List[UserMessage] = {
     val currentTimestamp = System.currentTimeMillis()
     val parts = extractParts(fragment, Nil)
     buffer = buffer.compact
@@ -40,7 +50,7 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
   }
 
   @tailrec
-  private def extractParts(nextChunk: ByteString, acc: List[ByteString]): List[ByteString] = {
+  private def extractParts(nextChunk: ByteString, acc: List[UserMessage]): List[UserMessage] = {
 
     delimiterFragment match {
       case Some(fragment) if nextChunk.size < fragment.size && fragment.startsWith(nextChunk) =>
@@ -50,9 +60,14 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
       // We got the missing parts of the delimiter
       case Some(fragment) if nextChunk.startsWith(fragment) ⇒
         val decoded = if (includeDelimiter) buffer ++ fragment else buffer.take(buffer.size - delimiter.size + fragment.size)
+        val message = InputMessageParser.parse(decoded.utf8String)
+        //val test = new MessageOutput()
         buffer = ByteString.empty
         delimiterFragment = None
-        extractParts(nextChunk.drop(fragment.size), decoded :: acc)
+        if(message.isSuccess)
+          extractParts(nextChunk.drop(fragment.size), message.get :: acc)
+        else
+          extractParts(nextChunk.drop(fragment.size), acc)
       case _ =>
         val matchPosition = nextChunk.indexOf(firstByteOfDelimiter)
         if (matchPosition == -1) {
@@ -85,7 +100,12 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
           if (singleByteDelimiter || nextChunk.slice(matchPosition, matchPosition + delimiter.size) == delimiter) {
             val decoded = buffer ++ nextChunk.take(missingBytes)
             buffer = ByteString.empty
-            extractParts(nextChunk.drop(matchPosition + delimiter.size), decoded :: acc)
+            val message = InputMessageParser.parse(decoded.utf8String)
+            if(message.isSuccess)
+              extractParts(nextChunk.drop(matchPosition + delimiter.size), message.get :: acc)
+            else
+              extractParts(nextChunk.drop(matchPosition + delimiter.size), acc)
+
           } else {
             buffer ++= nextChunk.take(matchPosition + 1)
             extractParts(nextChunk.drop(matchPosition + 1), acc)
@@ -94,4 +114,14 @@ class DelimiterFraming(maxSize: Int, delimiter: ByteString, includeDelimiter: Bo
 
     }
   }
+
+
+  sealed trait StateResult
+
+  def terminate(): StateResult = {
+    terminated = true
+    done()
+  }
+
+  def done(): StateResult = null
 }

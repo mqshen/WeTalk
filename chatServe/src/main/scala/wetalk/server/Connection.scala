@@ -5,7 +5,7 @@ import java.net.InetSocketAddress
 import akka.actor.FSM.Event
 import akka.actor._
 import org.reactivestreams.{ Subscription, Subscriber }
-import wetalk.protocol.{ Message, UserMessage, ServerMessage }
+import wetalk.parser.{ResponseMessage, RequestMessage}
 import wetalk.server.Connection._
 import wetalk.user.UserActor
 
@@ -28,17 +28,18 @@ trait ConnectionActor extends Actor with ActorLogging with FSM[Connection.Connec
 
   protected def remoteAddress: InetSocketAddress
 
-  protected def messageHandler: IncomingMessageHandler
+
+  def userActor: ActorRef
 
   startWith(Open, Uninitialized(messages = Queue.empty))
 
-//  var lastTime: Long = 0
+  //  var lastTime: Long = 0
 
   when(Open, stateTimeout = 1.second) {
     case Event(IncomingFlowClosed, _) =>
       log.info(s"$remoteAddress closed connection")
       stop()
-    case Event(message: UserMessage, Uninitialized(messages)) =>
+    case Event(message: RequestMessage, Uninitialized(messages)) =>
       log.debug("{}: buffered message before subscription", remoteAddress)
       stay() using Uninitialized(messages = messages enqueue message)
     case Event(Subscribe(subscriber), Uninitialized(messages)) =>
@@ -57,11 +58,8 @@ trait ConnectionActor extends Actor with ActorLogging with FSM[Connection.Connec
     case Event(OutgoingFlowClosed, _) =>
       log.info(s"$remoteAddress outgoing flow closed")
       stop()
-    case Event(message: UserMessage, _) =>
-//      val currentTimestamp = System.currentTimeMillis()
-      messageHandler.handleIncomingIrcMessage(message)
-//      println(s"delimiter time:${currentTimestamp - lastTime}" )
-//      this.lastTime = currentTimestamp
+    case Event(message: RequestMessage, _) =>
+      userActor ! message
       stay()
     case Event(UserActor.InvalidPassword, SubscriptionData(_, subscriber, _)) =>
       log.info(s"$remoteAddress close connection invalid password")
@@ -75,7 +73,7 @@ trait ConnectionActor extends Actor with ActorLogging with FSM[Connection.Connec
       val messagesToSendImmediately = pendingMessages take n
       messagesToSendImmediately.foreach(subscriber.onNext)
       stay() using SubscriptionData(requested = n - messagesToSendImmediately.size, subscriber, pendingMessages drop messagesToSendImmediately.size)
-    case Event(message: ServerMessage, SubscriptionData(requested, subscriber, pendingMessages)) =>
+    case Event(message: ResponseMessage, SubscriptionData(requested, subscriber, pendingMessages)) =>
       if (requested == 0) {
         stay() using SubscriptionData(requested, subscriber, pendingMessages enqueue message)
       } else {
@@ -90,9 +88,8 @@ class Connection(_remoteAddress: InetSocketAddress, databaseActor: ActorRef, ses
 
   override protected val remoteAddress = _remoteAddress
 
-  protected val userActor = context.actorOf(UserActor.props(self, databaseActor, sessionRegion), "user")
+  val userActor = context.actorOf(UserActor.props(self, databaseActor, sessionRegion), "user")
 
-  override protected val messageHandler = new IncomingMessageHandler(connection = self, userActor = userActor, remoteAddress = _remoteAddress, serverName = "todo")
 }
 
 object Connection {
@@ -103,7 +100,7 @@ object Connection {
 
   case class IncomingFlowClosed()
   case class OutgoingFlowClosed()
-  case class Subscribe(subscriber: Subscriber[_ >: Message])
+  case class Subscribe(subscriber: Subscriber[_ >: ResponseMessage])
   case class SubscriptionRequest(n: Int)
 
   sealed trait ConnectionState
@@ -111,7 +108,7 @@ object Connection {
   case object Subscribed extends ConnectionState
 
   sealed trait ConnectionData
-  case class Uninitialized(messages: Queue[UserMessage]) extends ConnectionData
-  case class SubscriptionData(requested: Int, subscriber: Subscriber[_ >: Message], pendingMessages: Queue[ServerMessage]) extends ConnectionData
+  case class Uninitialized(messages: Queue[RequestMessage]) extends ConnectionData
+  case class SubscriptionData(requested: Int, subscriber: Subscriber[_ >: ResponseMessage], pendingMessages: Queue[ResponseMessage]) extends ConnectionData
 
 }

@@ -1,9 +1,8 @@
-package wetalk
+package wetalk.server
 
 import akka.actor._
-import wetalk.ConnectionSession.SendPackage
 import wetalk.data.User
-import wetalk.protocol.DispatchChatMessage
+import wetalk.parser.{GroupDispatchPackage, CreateSession, DispatchChatMessage}
 
 import scala.collection.mutable
 
@@ -22,7 +21,7 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
   val sessionActor = new mutable.HashMap[String, ActorRef]
 
   def receive = {
-    case ConnectionSession.CreateSession(sessionId: String, user: User, userActor: ActorRef) =>
+    case CreateSession(sessionId: String, user: User, userActor: ActorRef) =>
       sessions.get(sessionId) match {
         case Some(_) =>
         case None =>
@@ -36,11 +35,11 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
           userActor ! cmd
         case None =>
       }
-    case cmd: ConnectionSession.GroupDispatchPackage =>
+    case cmd: GroupDispatchPackage =>
       cmd.users.filter(userId => userId != cmd.userId).foreach { userId =>
         sessions.get(userId).map { sessionId =>
           context.child(sessionId) match {
-            case Some(ref) => ref forward cmd.wtPackage
+            case Some(ref) => ref forward cmd.message
             case None      => log.warning("Failed to select actor {}", sessionId)
           }
         }
@@ -50,3 +49,4 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
   }
 
 }
+

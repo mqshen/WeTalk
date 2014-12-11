@@ -11,8 +11,8 @@ import akka.stream.{ FlowMaterializer, MaterializerSettings }
 import akka.util.{ ByteString, Timeout }
 import org.reactivestreams.{ Subscriber, Publisher }
 import wetalk.data.{CacheManager, DataManager}
-import wetalk.protocol.{ MessageParser, DelimiterFraming, Message }
-import wetalk.server.Connection
+import wetalk.parser.{DelimiterFraming, MessageParser, ResponseMessage}
+import wetalk.server.{LocalConnectionSessionRegion, Connection}
 
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
@@ -71,31 +71,36 @@ class ChatServer(shutdownSystemOnError: Boolean = false) extends Actor with Acto
   }
 
   private def createIncomingFlow(connection: IncomingTcpConnection, connectionActor: ActorRef) {
-    val delimiterFraming = new DelimiterFraming(maxSize = 1000, delimiter = delimiter)
+    val delimiterFraming = new DelimiterFraming(maxSize = 51200, delimiter = delimiter)
     Source(connection.inputStream)
       .mapConcat(delimiterFraming.apply)
       .map(_.utf8String)
       .map(MessageParser.parse)
+      .filter(_.isSuccess)
+      .map(_.get)
       .foreach(connectionActor ! _)
       .onComplete { case _ => connectionActor ! Connection.IncomingFlowClosed }
   }
 
   private def createOutgoingFlow(connection: IncomingTcpConnection, connectionActor: ActorRef) {
-    val publisher = new Publisher[Message] {
+    val publisher = new Publisher[ResponseMessage] {
 
-      override def subscribe(s: Subscriber[_ >: Message]): Unit = {
+      override def subscribe(s: Subscriber[_ >: ResponseMessage]): Unit = {
         connectionActor ! Connection.Subscribe(s)
       }
     }
     Source(publisher)
-      .map(_.toString + "\r\n")
+      .map{ t =>
+        println(t)
+        t.toString + "\r\n"
+      }
       .map(ByteString.apply).to(Sink(connection.outputStream)).run()
   }
 }
 
 import akka.actor.{ Props, ActorSystem }
 
-object Starter {
+object ChatServer {
 
   def main(args: Array[String]): Unit = {
     val ircServerSystem = ActorSystem.create("message-system")

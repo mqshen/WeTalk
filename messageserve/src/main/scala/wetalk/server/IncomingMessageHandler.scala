@@ -39,11 +39,7 @@ class IncomingMessageHandler(connection: ActorRef, userActor: ActorRef, remoteAd
       case Heartbeat =>
         userActor ! HeartbeatMessage
       case Message =>
-//        val starTime = System.currentTimeMillis()
         val chatMessage = Json.parse(message.jsonData).as[ChatMessage]
-//        val timeInterval = System.currentTimeMillis() - chatMessage.timestamp
-//        val parserTime = System.currentTimeMillis() - starTime
-//        log.debug(s" parse time:$parserTime, trade time:$timeInterval")
         userActor ! (chatMessage, message.prefix.id)
       case GroupMessage =>
       case UserCommand  =>

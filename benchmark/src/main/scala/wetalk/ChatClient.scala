@@ -108,9 +108,16 @@ class ClientMessageHandler(connection: ActorRef, commander: ActorRef, remoteAddr
         commander ! HeartbeatMessage
       case Message =>
         val m = Json.parse(message.jsonData)
-        val timestamp = (m \ "content" \ "timestamp").as[Long]
-        val messageArrivedAt = System.currentTimeMillis - timestamp
-        commander ! MessageArrived(messageArrivedAt)
+        try {
+          val timestamp = (m \ "content" \ "timestamp").as[Long]
+          val messageArrivedAt = System.currentTimeMillis - timestamp
+          commander ! MessageArrived(messageArrivedAt)
+        }
+        catch {
+          case e: Exception =>
+            println(e)
+        }
+
       case GroupMessage =>
       case UserCommand  =>
       case Ack          =>
@@ -157,12 +164,12 @@ case class SendChatMessage(seqNo: Long, from: String, to: String, content: Strin
 
 }
 
-class ChatClient(commander: ActorRef) extends Actor with ActorLogging {
+class ChatClient(serverAddress: InetSocketAddress, commander: ActorRef) extends Actor with ActorLogging {
 
   private implicit val system = context.system
 
-  private val serverAddress = new InetSocketAddress(context.system.settings.config.getString("wetalk.server.host"),
-    context.system.settings.config.getInt("wetalk.server.port"))
+  //  private val serverAddress = new InetSocketAddress(context.system.settings.config.getString("wetalk.server.host"),
+  //    context.system.settings.config.getInt("wetalk.server.port"))
 
   private val settings = MaterializerSettings(system)
 
@@ -208,7 +215,7 @@ class ChatClient(commander: ActorRef) extends Actor with ActorLogging {
     case e: ChatMessageSend =>
       _connection ! protocol.LoginResponse(2)
     case SendMessage =>
-      _connection ! SendChatMessage(System.currentTimeMillis(), "t", "3", "test", timestamp = System.currentTimeMillis())
+      _connection ! SendChatMessage(System.currentTimeMillis(), "t", "5", "test", timestamp = System.currentTimeMillis())
   }
 
   private def createIncomingFlow(connection: StreamTcp.OutgoingTcpConnection, connectionActor: ActorRef) {

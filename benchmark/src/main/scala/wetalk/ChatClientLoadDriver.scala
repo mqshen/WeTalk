@@ -80,13 +80,14 @@ object ChatClientLoadDriver {
       println
     }
 
-    var i = 0
-    while (i < concurrencyLevels.length) {
+    (0 until concurrencyLevels.length).foreach { i =>
+
       val concurrentConnections = concurrencyLevels(i)
 
       val driver = system.actorOf(Props(new ChatClientLoadDriver), "socketioclients")
 
       val f = driver.ask(RoundBegin(concurrentConnections))(100.minutes).mapTo[StatsSummary]
+
       val summaryStats = Await.result(f, Duration.Inf).stats
 
       system.stop(driver)
@@ -242,8 +243,8 @@ class ChatClientLoadDriver extends Actor with ActorLogging {
 
       var i = 0
       while (i < nToCreate) {
-        //val remote = connect(ThreadLocalRandom.current.nextInt(connect.size))
-        val client = system.actorOf(Props(new ChatClient(self)))
+        val remote = connect(ThreadLocalRandom.current.nextInt(connect.size))
+        val client = system.actorOf(Props(new ChatClient(remote, self)))
         clients ::= client
         i += 1
       }
