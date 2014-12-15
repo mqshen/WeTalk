@@ -82,9 +82,16 @@ case class LoginResponse(seqNo: String, user: User) extends ResponseMessage {
     "seqNo" -> seqNo,
     "user" -> user)
 
-  override def toString = s"1:0:$json"
+  override def toString = s"1:1:$json"
 }
 
+case class OfflineMessageResponse(seqNo: Long, message: String) extends ResponseMessage {
+  val json = Json.obj("seqNo" -> seqNo,
+    "ec" -> 0,
+    "message" -> message)
+
+  override def toString = s"1:2:$json"
+}
 
 object HeartbeatPrefix extends CommandPrefix(2, 2)
 
@@ -139,7 +146,7 @@ case class ReceiveChatMessage(seqNo: String,
     "timestamp" -> timestamp
   )
 
-  override def toString = s"3:$seqNo:$json"
+  override def toString = s"3:0:$json"
 }
 
 case class ChatAckResponse(seqNo: String, timestamp: Long) extends ResponseMessage {
@@ -195,6 +202,7 @@ case class CreateGroupResponse(seqNo: String, group: Group) extends ResponseMess
   override def toString = s"5:6:$json"
 
 }
+
 
 object NOOP extends RequestMessage with ResponseMessage {
 

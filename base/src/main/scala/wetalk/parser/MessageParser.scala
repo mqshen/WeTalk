@@ -6,7 +6,7 @@ package wetalk.parser
 
 import play.api.libs.json.Json
 import wetalk.EnumUtils
-import wetalk.data.UserAuth
+import wetalk.data.{UserSync, UserAuth}
 import wetalk.parser.MessageType.MessageType
 
 import scala.util.Try
@@ -23,6 +23,7 @@ object JsonFormat {
   implicit val listFriendFormat = Json.format[ListFriendRequest]
   implicit val createGroupFormat = Json.format[CreateGroupRequest]
   implicit val listGroupFormat = Json.format[ListGroupRequest]
+  implicit val userSyncFormat = Json.format[UserSync]
 }
 
 object MessageParser extends RegexParsers {
@@ -58,7 +59,12 @@ object MessageParser extends RegexParsers {
           case 0 =>
             null
           case 1 =>
-            Json.parse(command.jsonData).as[UserAuth]
+            command.prefix.commandId match {
+              case 1 =>
+                Json.parse(command.jsonData).as[UserAuth]
+              case 2 =>
+                Json.parse(command.jsonData).as[UserSync]
+            }
           case 2 =>
             HeartbeatMessage
           case 3 =>

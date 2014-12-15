@@ -47,9 +47,26 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
   }
 
   def authenticated: Receive = {
+    case userSync: UserSync =>
+      syncUser(userSync)
     case chatMessage: ChatMessage =>
-      if (chatMessage.to.indexOf("@room") > 0) {
-
+      val index = chatMessage.to.indexOf("@room")
+      if (index > 0) {
+        val groupId = chatMessage.to.substring(0, index)
+        val f = databaseActor ? CheckGroupRelationShip(chatMessage.from.toInt, groupId.toInt)
+        f onSuccess {
+          case users : List[String] =>
+            users.map { user =>
+              sessionRegion ! DispatchChatMessage(chatMessage.seqNo, user, ReceiveChatMessage(chatMessage))
+            }
+            connection ! ChatAckResponse(chatMessage.seqNo, chatMessage.timestamp)
+          case _ =>
+            connection ! ErrorMessage("0", "system error")
+        }
+        f onFailure {
+          case t =>
+            connection ! ErrorMessage("0", "system error")
+        }
       }
       else {
         val f = databaseActor ? CheckRelationShip(chatMessage.from.toInt, chatMessage.to.toInt)
@@ -119,6 +136,25 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
       }
     case _ =>
       println("tttt")
+  }
+
+
+  def syncUser(userSync: UserSync): Unit = {
+    val f = databaseActor ? UserSync(userSync.seqNo, user.id, userSync.syncKey)
+    f onSuccess {
+      case messages:  List[OfflineMessageResponse] =>
+        messages.map { message =>
+          connection ! message
+        }
+      case e =>
+        val response = ErrorMessage(userSync.seqNo, "not found")
+        connection ! response
+    }
+    f onFailure {
+      case t =>
+        val response = ErrorMessage(userSync.seqNo, "not found")
+        connection ! response
+    }
   }
 
 }

@@ -1,8 +1,8 @@
 package wetalk.server
 
 import akka.actor._
-import wetalk.data.User
-import wetalk.parser.{GroupDispatchPackage, CreateSession, DispatchChatMessage}
+import wetalk.data.{OfflineMessage, User}
+import wetalk.parser._
 
 import scala.collection.mutable
 
@@ -34,19 +34,24 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
         case Some(userActor) =>
           userActor ! cmd
         case None =>
+          processOfflineMessage(cmd.to.toInt, cmd.message)
       }
     case cmd: GroupDispatchPackage =>
       cmd.users.filter(userId => userId != cmd.userId).foreach { userId =>
-        sessions.get(userId).map { sessionId =>
-          context.child(sessionId) match {
-            case Some(ref) => ref forward cmd.message
-            case None      => log.warning("Failed to select actor {}", sessionId)
-          }
+        sessionActor.get(userId) match {
+          case Some(ref) =>
+            ref forward cmd.message
+          case None      =>
+            log.warning("Failed to select actor {}", userId)
+            //processOfflineMessage(userId.toInt, cmd.message)
         }
       }
 
     case Terminated(ref) =>
   }
 
+  def processOfflineMessage(userId: Int, message: ResponseMessage): Unit = {
+    databaseActor ! OfflineMessage(userId, message)
+  }
 }
 

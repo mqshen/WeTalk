@@ -5,6 +5,7 @@ import java.util.Date
 
 import akka.actor.{ Props, Actor }
 import com.typesafe.config.{ Config, ConfigFactory }
+import wetalk.parser.OfflineMessageResponse
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -57,7 +58,7 @@ class DataManager extends Actor {
   }
 
   override def receive: Receive = {
-    case UserAuth(userName, password) =>
+    case UserAuth(seqNo, userName, password) =>
       val sql = "select id, name, nick, avatar, address, status, sex, type, phone, mail, " +
         "created, updated from IMUsers where name = ? and password =?"
       var statement: PreparedStatement = null
@@ -81,6 +82,9 @@ class DataManager extends Actor {
         close(rs)
         close(statement)
       }
+    case userSync: UserSync =>
+      val messages = getUserSync(userSync)
+      sender() ! messages
     case GetDepartment(departmentId) =>
       val date = new Date(System.currentTimeMillis())
       val department = Department(1, "1", "2", "1", "1", 0, date, date)
@@ -145,6 +149,47 @@ class DataManager extends Actor {
       }
     case group: Group =>
       createGroup(group)
+    case checkGroup: CheckGroupRelationShip =>
+      checkGroupRelationShip(checkGroup)
+    case offlineMessage : OfflineMessage =>
+      storeOfflineMessage(offlineMessage)
+  }
+
+  def checkGroupRelationShip(checkGroup: CheckGroupRelationShip): Unit = {
+    val sql = "select user_id from IMGroupRelation where group_id = ? and user_id = ?"
+    var statement: PreparedStatement = null
+    var result: ResultSet = null
+    statement = Settings.connect.prepareStatement(sql)
+    try {
+      statement.setInt(1, checkGroup.groupId)
+      statement.setInt(2, checkGroup.userId)
+      result = statement.executeQuery()
+      if(result.next()) {
+        val sql = "select user_id from IMGroupRelation where group_id = ?"
+        var users = scala.collection.mutable.ArrayBuffer[String]()
+        var rs: ResultSet = null
+        var listStatement: PreparedStatement = null
+        listStatement = Settings.connect.prepareStatement(sql)
+        try {
+          listStatement.setInt(1, checkGroup.groupId)
+          rs = listStatement.executeQuery()
+          while (rs.next()) {
+            users += rs.getString(1)
+          }
+          sender() ! users.toList
+        }
+        finally {
+          close(rs)
+          close(listStatement)
+        }
+      }
+      else {
+        sender() ! List()
+      }
+    } finally {
+      close(result)
+      close(statement)
+    }
   }
 
   def joinGroup(groupId: Int, userId: Int): Unit = {
@@ -302,6 +347,45 @@ class DataManager extends Actor {
     }
     finally {
       close(rs)
+      close(statement)
+    }
+  }
+
+  def storeOfflineMessage(offlineMessage: OfflineMessage): Unit = {
+    val sql = "insert into IMOfflineMessage(user_id, create_date, message) values (?, ?, ?)"
+    var statement: PreparedStatement = null
+    val date = new Date(System.currentTimeMillis())
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setInt(1, offlineMessage.userId)
+      statement.setTimestamp(2, date)
+      statement.setString(3, offlineMessage.message.toString)
+      statement.executeUpdate()
+    }
+    finally {
+      close(statement)
+    }
+  }
+
+  def getUserSync(userSync: UserSync): List[OfflineMessageResponse] = {
+    val sql = "select id, message from IMOfflineMessage where user_id = ? and id > ?"
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setInt(1, userSync.userId)
+      statement.setLong(2, userSync.syncKey)
+      rs = statement.executeQuery()
+      var messages = scala.collection.mutable.ArrayBuffer[OfflineMessageResponse]()
+      while (rs.next()) {
+        val id = rs.getLong(1)
+        val message = rs.getString(2)
+        val offlineMessage = OfflineMessageResponse(id, message)
+        messages += offlineMessage
+      }
+      messages.toList
+    }
+    finally {
       close(statement)
     }
   }
