@@ -153,6 +153,9 @@ class DataManager extends Actor {
       checkGroupRelationShip(checkGroup)
     case offlineMessage : OfflineMessage =>
       storeOfflineMessage(offlineMessage)
+    case userSearch : UserSearch =>
+      searchUser(userSearch)
+
   }
 
   def checkGroupRelationShip(checkGroup: CheckGroupRelationShip): Unit = {
@@ -386,6 +389,32 @@ class DataManager extends Actor {
       messages.toList
     }
     finally {
+      close(statement)
+    }
+  }
+
+  def searchUser(userSearch: UserSearch) = {
+    val sql = "select id, name, nick, avatar, address, status, sex, type, phone, mail, " +
+      "created, updated from IMUsers where name like CONCAT('%', ?, '%')"
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setString(1, userSearch.name)
+      rs = statement.executeQuery
+      var users = scala.collection.mutable.ArrayBuffer[User]()
+      while (rs.next()) {
+        val update = rs.getDate("updated")
+        val updateData = if(update == null) None else Some(update)
+        val user = User(rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
+          rs.getString("address"), rs.getInt("status"), rs.getInt("sex"), rs.getInt("type"), rs.getString("phone"),
+          rs.getString("mail"), rs.getDate("created"), updateData)
+        users += user
+      }
+      sender() ! users.toList
+    }
+    finally {
+      close(rs)
       close(statement)
     }
   }

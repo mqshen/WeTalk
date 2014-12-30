@@ -24,6 +24,8 @@ object JsonFormat {
   implicit val createGroupFormat = Json.format[CreateGroupRequest]
   implicit val listGroupFormat = Json.format[ListGroupRequest]
   implicit val userSyncFormat = Json.format[UserSync]
+  implicit val userSearchRequestFormat = Json.format[UserSearchRequest]
+  implicit val userAddRequestFormat = Json.format[UserAddRequest]
 }
 
 object MessageParser extends RegexParsers {
@@ -81,15 +83,17 @@ object MessageParser extends RegexParsers {
               case 1 =>
                 Json.parse(command.jsonData).as[ListFriendRequest]
               case 5 =>
+                Json.parse(command.jsonData).as[UserSearchRequest]
+              case 6 =>
+                Json.parse(command.jsonData).as[UserAddRequest]
+            }
+          case 6 =>
+            command.prefix.commandId match {
+              case 5 =>
                 Json.parse(command.jsonData).as[ListGroupRequest]
               case 6 =>
                 Json.parse(command.jsonData).as[CreateGroupRequest]
-              case _ =>
-                NOOP
             }
-          case 6 =>
-            null
-
           case 7 =>
             null
         }

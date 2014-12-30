@@ -31,3 +31,5 @@ case class GetGroupInfo(groupId: Int)
 case class CreateGroup(user: Int, members: List[Int])
 
 case class OfflineMessage(userId: Int, message: ResponseMessage)
+
+case class UserSearch(name: String, page: Int)

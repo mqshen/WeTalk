@@ -57,7 +57,7 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
         f onSuccess {
           case users : List[String] =>
             users.map { user =>
-              sessionRegion ! DispatchChatMessage(chatMessage.seqNo, user, ReceiveChatMessage(chatMessage))
+              sessionRegion ! DispatchMessage(chatMessage.seqNo, user, ReceiveChatMessage(chatMessage))
             }
             connection ! ChatAckResponse(chatMessage.seqNo, chatMessage.timestamp)
           case _ =>
@@ -72,7 +72,7 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
         val f = databaseActor ? CheckRelationShip(chatMessage.from.toInt, chatMessage.to.toInt)
         f onSuccess {
           case 1 =>
-            sessionRegion ! DispatchChatMessage(chatMessage.seqNo, chatMessage.to, ReceiveChatMessage(chatMessage))
+            sessionRegion ! DispatchMessage(chatMessage.seqNo, chatMessage.to, ReceiveChatMessage(chatMessage))
             connection ! ChatAckResponse(chatMessage.seqNo, chatMessage.timestamp)
           case _ =>
             connection ! ErrorMessage("0", "system error")
@@ -83,7 +83,7 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
         }
       }
 
-    case message: DispatchChatMessage =>
+    case message: DispatchMessage =>
       connection ! message.message
 
     case listFriends: ListFriendRequest =>
@@ -134,10 +134,32 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
           val response = ErrorMessage(listGroup.seqNo, "not found")
           connection ! response
       }
+    case userSearchRequest: UserSearchRequest =>
+      val f = databaseActor ? UserSearch(userSearchRequest.name, 0)
+      f onSuccess {
+        case users:  List[User] =>
+          val response = ListSearchResponse(userSearchRequest.seqNo, users)
+          connection ! response
+        case e =>
+          val response = ErrorMessage(userSearchRequest.seqNo, "not found")
+          connection ! response
+      }
+      f onFailure {
+        case t =>
+          val response = ErrorMessage(userSearchRequest.seqNo, "not found")
+          connection ! response
+      }
+    case userAddRequest: UserAddRequest =>
+      addUserRequest(userAddRequest)
     case _ =>
       println("tttt")
   }
 
+  def addUserRequest(userAddRequest: UserAddRequest): Unit = {
+    val message = DispatchUserAdd(userAddRequest.id, user, userAddRequest.greeting)
+    sessionRegion ! DispatchMessage(userAddRequest.seqNo, userAddRequest.id, message)
+    connection ! UserAddResponse(userAddRequest.seqNo)
+  }
 
   def syncUser(userSync: UserSync): Unit = {
     val f = databaseActor ? UserSync(userSync.seqNo, user.id, userSync.syncKey)

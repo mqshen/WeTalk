@@ -10,8 +10,9 @@ import akka.stream.scaladsl.{ Source, Flow, Sink }
 import akka.stream.{ FlowMaterializer, MaterializerSettings }
 import akka.util.{ ByteString, Timeout }
 import org.reactivestreams.{ Subscriber, Publisher }
+import play.api.libs.json.Json
 import wetalk.data.{CacheManager, DataManager}
-import wetalk.parser.{DelimiterFraming, MessageParser, ResponseMessage}
+import wetalk.parser.{UserAddRequest, DelimiterFraming, MessageParser, ResponseMessage}
 import wetalk.server.{LocalConnectionSessionRegion, Connection}
 
 import scala.concurrent.duration._
@@ -103,6 +104,7 @@ import akka.actor.{ Props, ActorSystem }
 object ChatServer {
 
   def main(args: Array[String]): Unit = {
+
     val ircServerSystem = ActorSystem.create("message-system")
     ircServerSystem.actorOf(Props(new ChatServer(shutdownSystemOnError = true)), "messageServer")
   }

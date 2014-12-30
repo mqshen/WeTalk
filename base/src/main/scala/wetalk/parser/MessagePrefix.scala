@@ -99,7 +99,7 @@ object HeartbeatMessage extends RequestMessage {
   val seqNo = "0"
 }
 
-case class DispatchChatMessage(seqNo: String, to: String, message: ResponseMessage) extends RequestMessage
+case class DispatchMessage(seqNo: String, to: String, message: ResponseMessage) extends RequestMessage
 
 object MessageType extends Enumeration {
   type MessageType = Value
@@ -192,12 +192,51 @@ case class ListGroupResponse(seqNo: String, groups: List[Group]) extends Respons
 
 case class CreateGroupRequest(seqNo: String, members: List[String]) extends RequestMessage
 
+
 case class CreateGroupResponse(seqNo: String, group: Group) extends ResponseMessage {
   implicit val groupFormat = Json.format[Group]
   val resultCode = 0
   val errorMessage = ""
 
   val json = Json.obj("ec" -> 0, "em" -> "", "seqNo" -> seqNo, "group" -> group)
+
+  override def toString = s"5:6:$json"
+}
+
+case class UserSearchRequest(seqNo: String, name: String) extends RequestMessage
+
+case class ListSearchResponse(seqNo: String, users: List[User]) extends ResponseMessage {
+  implicit val userFormat = Json.format[User]
+
+  lazy val json = Json.obj(
+    "ec" -> 0,
+    "em" -> "",
+    "seqNo" -> seqNo,
+    "users" -> users)
+
+  override def toString = s"5:5:$json"
+}
+
+case class DispatchUserAdd(to: String, user: User, greeting: String) extends ResponseMessage {
+  implicit val userFormat = Json.format[User]
+  val resultCode = 0
+  val errorMessage = ""
+
+  val json = Json.obj("ec" -> 0, "em" -> "", "user" -> user)
+
+  override def toString = s"5:7:$json"
+
+}
+
+case class UserAddRequest(seqNo: String, id: String, greeting: String) extends RequestMessage
+
+
+case class UserAddResponse(seqNo: String) extends ResponseMessage {
+  implicit val groupFormat = Json.format[Group]
+  val resultCode = 0
+  val errorMessage = ""
+
+  val json = Json.obj("ec" -> 0, "em" -> "", "seqNo" -> seqNo)
 
   override def toString = s"5:6:$json"
 

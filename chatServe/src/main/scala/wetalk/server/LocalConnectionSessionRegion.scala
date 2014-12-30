@@ -29,7 +29,7 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
           sessionActor += (user.id.toString -> userActor)
       }
 
-    case cmd: DispatchChatMessage =>
+    case cmd: DispatchMessage =>
       sessionActor.get(cmd.to) match {
         case Some(userActor) =>
           userActor ! cmd
