@@ -18,6 +18,7 @@ import scala.util.parsing.combinator._
 
 object JsonFormat {
   implicit val enumAFormat = EnumUtils.enumFormat(MessageType)
+  implicit val FriendOperateFormat = EnumUtils.enumFormat(FriendOperate)
   implicit val userAuthFormat = Json.format[UserAuth]
   implicit val chatMessageFormat = Json.format[ChatMessage]
   implicit val listFriendFormat = Json.format[ListFriendRequest]
@@ -26,6 +27,8 @@ object JsonFormat {
   implicit val userSyncFormat = Json.format[UserSync]
   implicit val userSearchRequestFormat = Json.format[UserSearchRequest]
   implicit val userAddRequestFormat = Json.format[UserAddRequest]
+  implicit val userAddResponseRequestFormat = Json.format[UserAddResponseRequest]
+  implicit val friendOperateRequestFormat = Json.format[FriendOperateRequest]
 }
 
 object MessageParser extends RegexParsers {
@@ -82,10 +85,14 @@ object MessageParser extends RegexParsers {
             command.prefix.commandId match {
               case 1 =>
                 Json.parse(command.jsonData).as[ListFriendRequest]
+              case 3 =>
+                Json.parse(command.jsonData).as[FriendOperateRequest]
               case 5 =>
                 Json.parse(command.jsonData).as[UserSearchRequest]
               case 6 =>
                 Json.parse(command.jsonData).as[UserAddRequest]
+              case 8 =>
+                Json.parse(command.jsonData).as[UserAddResponseRequest]
             }
           case 6 =>
             command.prefix.commandId match {

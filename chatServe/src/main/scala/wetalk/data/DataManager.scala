@@ -58,6 +58,8 @@ class DataManager extends Actor {
   }
 
   override def receive: Receive = {
+    case GetUser(id) =>
+      getUser(id)
     case UserAuth(seqNo, userName, password) =>
       val sql = "select id, name, nick, avatar, address, status, sex, type, phone, mail, " +
         "created, updated from IMUsers where name = ? and password =?"
@@ -414,6 +416,31 @@ class DataManager extends Actor {
       sender() ! users.toList
     }
     finally {
+      close(rs)
+      close(statement)
+    }
+  }
+
+  def getUser(id: Int): Unit = {
+    val sql = "select id, name, nick, avatar, address, status, sex, type, phone, mail, " +
+      "created, updated from IMUsers where id = ? "
+    var statement: PreparedStatement = null
+    var rs: ResultSet = null
+    try {
+      statement = Settings.connect.prepareStatement(sql)
+      statement.setLong(1, id)
+      rs = statement.executeQuery
+      if (rs.next()) {
+        val update = rs.getDate("updated")
+        val updateData = if(update == null) None else Some(update)
+        val user = User(rs.getInt("id"), rs.getString("name"), rs.getString("nick"), rs.getString("avatar"),
+          rs.getString("address"), rs.getInt("status"), rs.getInt("sex"), rs.getInt("type"), rs.getString("phone"),
+          rs.getString("mail"), rs.getDate("created"), updateData)
+        sender() ! user
+      } else {
+        sender() ! NotFound
+      }
+    } finally {
       close(rs)
       close(statement)
     }

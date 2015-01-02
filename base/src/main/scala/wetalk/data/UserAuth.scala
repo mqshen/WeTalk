@@ -18,6 +18,8 @@ case class CheckGroupRelationShip(userId: Int, groupId: Int)
 
 case class GetDepartment(departmentId: Int)
 
+case class GetUser(userId: Int)
+
 case class GetFriend(userId: Int)
 
 case class GetRecentContract(userId: Int)

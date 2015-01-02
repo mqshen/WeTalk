@@ -149,10 +149,37 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
           val response = ErrorMessage(userSearchRequest.seqNo, "not found")
           connection ! response
       }
+
+    case request: FriendOperateRequest =>
+      friendOperate(request)
+
+
+    //TODO
     case userAddRequest: UserAddRequest =>
       addUserRequest(userAddRequest)
+    case request: UserAddResponseRequest =>
+      addUserResponse(request)
     case _ =>
       println("tttt")
+  }
+
+  def friendOperate(request: FriendOperateRequest): Unit = {
+    val f = databaseActor ? GetUser(request.id.toInt)
+
+    f onSuccess {
+      case friend: User =>
+        if(request.operate == FriendOperate.Add) {
+          val message = FriendOperateResponse(request.seqNo, request.id, user, FriendOperate.ReceiveAdd, request.greeting)
+          sessionRegion ! DispatchMessage(request.seqNo, request.id, message)
+          connection ! message.copy(operate = FriendOperate.Add, user = friend)
+        }
+        else  if(request.operate == FriendOperate.Accept) {
+          val message = FriendOperateResponse(request.seqNo, request.id, user, FriendOperate.ReceiveAccept, request.greeting)
+          sessionRegion ! DispatchMessage(request.seqNo, request.id, message)
+          connection ! message.copy(operate = FriendOperate.Accept, user = friend)
+        }
+    }
+
   }
 
   def addUserRequest(userAddRequest: UserAddRequest): Unit = {
@@ -160,6 +187,15 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
     sessionRegion ! DispatchMessage(userAddRequest.seqNo, userAddRequest.id, message)
     connection ! UserAddResponse(userAddRequest.seqNo)
   }
+
+
+  def addUserResponse(request: UserAddResponseRequest): Unit = {
+    //TODO
+//    val message = DispatchUserAddResponse(userAddRequest.id, user, userAddRequest.greeting)
+//    sessionRegion ! DispatchMessage(userAddRequest.seqNo, userAddRequest.id, message)
+//    connection ! UserAddResponse(userAddRequest.seqNo)
+  }
+
 
   def syncUser(userSync: UserSync): Unit = {
     val f = databaseActor ? UserSync(userSync.seqNo, user.id, userSync.syncKey)

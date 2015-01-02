@@ -2,6 +2,7 @@ package wetalk.parser
 
 import play.api.libs.json.{JsObject, Json}
 import wetalk.data.{Group, UserAuth}
+import wetalk.parser.FriendOperate.FriendOperate
 
 /**
  * Created by goldratio on 11/24/14.
@@ -217,6 +218,41 @@ case class ListSearchResponse(seqNo: String, users: List[User]) extends Response
   override def toString = s"5:5:$json"
 }
 
+
+object FriendOperate extends Enumeration {
+  type FriendOperate = Value
+  val Add, ReceiveAdd, Accept, ReceiveAccept, Reject, ReceiveReject = Value
+}
+
+case class FriendOperateRequest(seqNo: String, id: String, operate: FriendOperate, greeting: String) extends RequestMessage
+
+
+case class FriendOperateResponse(seqNo: String, to: String, user: User, operate: FriendOperate, greeting: String) extends ResponseMessage {
+  implicit val userFormat = Json.format[User]
+  //implicit val operateFormat = Json.format[FriendOperate]
+  val resultCode = 0
+  val errorMessage = ""
+
+  val json = Json.obj("ec" -> 0,
+    "em" -> "",
+    "user" -> user,
+    "operate" -> operate.id,
+    "seqNo" -> seqNo)
+
+  override def toString = s"5:3:$json"
+}
+//
+//case class DispatchUserOperate(to: String, user: User, greeting: String) extends ResponseMessage {
+//  implicit val userFormat = Json.format[User]
+//  val resultCode = 0
+//  val errorMessage = ""
+//
+//  val json = Json.obj("ec" -> 0, "em" -> "", "user" -> user)
+//
+//  override def toString = s"5:7:$json"
+//
+//}
+
 case class DispatchUserAdd(to: String, user: User, greeting: String) extends ResponseMessage {
   implicit val userFormat = Json.format[User]
   val resultCode = 0
@@ -242,6 +278,17 @@ case class UserAddResponse(seqNo: String) extends ResponseMessage {
 
 }
 
+case class UserAddResponseRequest(seqNo: String, id: String) extends RequestMessage
+
+case class UserAddResponseResponse(seqNo: String, user: User) extends ResponseMessage {
+  implicit val groupFormat = Json.format[User]
+  val resultCode = 0
+  val errorMessage = ""
+
+  val json = Json.obj("ec" -> 0, "em" -> "", "seqNo" -> seqNo, "user" -> user)
+
+  override def toString = s"5:8:$json"
+}
 
 object NOOP extends RequestMessage with ResponseMessage {
 
