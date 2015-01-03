@@ -201,6 +201,7 @@ object Dependencies {
 
   val playJson = "com.typesafe.play" %% "play-json" % "2.3.0"
 
+  val HikariCP = "com.zaxxer" % "HikariCP-java6" % "2.2.5" % "compile"
   val mysql = "mysql" % "mysql-connector-java" % "5.1.29"
   val redis = "net.debasishg" %% "redisclient" % "2.13"
 
@@ -208,5 +209,5 @@ object Dependencies {
 
   val all = Seq(spray_websocket, akka_actor, akka_contrib, akka_stream,
     parboiled, akka_testkit, akka_multinode_testkit, scalatest, apache_math, caliper,
-    logback, akka_slf4j, mysql, redis, scala_parser, playJson)
+    logback, akka_slf4j, mysql, redis, scala_parser, playJson, HikariCP)
 }

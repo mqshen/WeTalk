@@ -20,3 +20,4 @@ object ErrorInfo {
 /** Marker for exceptions that provide an ErrorInfo */
 abstract class ExceptionWithErrorInfo(val info: ErrorInfo) extends RuntimeException(info.formatPretty)
 
+class WeTalkException(msg: String, parent: Throwable = null) extends RuntimeException(msg, parent)
