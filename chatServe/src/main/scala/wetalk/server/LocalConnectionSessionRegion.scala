@@ -1,10 +1,15 @@
 package wetalk.server
 
+import java.util.concurrent.ThreadFactory
+
 import akka.actor._
+import akka.dispatch.MonitorableThreadFactory
+import akka.event.LoggingAdapter
+import com.typesafe.config.{Config, ConfigFactory}
 import wetalk.data.{OfflineMessage, User}
 import wetalk.parser._
 
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 
 /**
  * Created by goldratio on 11/6/14.
@@ -13,6 +18,8 @@ import scala.collection.mutable
 object LocalConnectionSessionRegion {
   def props(databaseActor: ActorRef, cacheActor: ActorRef) =
     Props(classOf[LocalConnectionSessionRegion], databaseActor, cacheActor)
+
+
 }
 
 class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef) extends Actor with ActorLogging {
@@ -45,6 +52,13 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
             log.warning("Failed to select actor {}", userId)
             //processOfflineMessage(userId.toInt, cmd.message)
         }
+      }
+    case CloseSession(useId: String, sessionId: String) =>
+      sessions.get(useId) match {
+        case Some(_) =>
+          sessions -= useId
+          sessionActor -= useId
+        case None =>
       }
 
     case Terminated(ref) =>

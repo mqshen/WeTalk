@@ -69,9 +69,11 @@ object MessageParser extends RegexParsers {
                 Json.parse(command.jsonData).as[UserAuth]
               case 2 =>
                 Json.parse(command.jsonData).as[UserSync]
+              case 9 =>
+                DisconnectRequest
             }
           case 2 =>
-            HeartbeatMessage
+            HeartbeatRequest
           case 3 =>
             command.prefix.commandId match {
               case 1 =>

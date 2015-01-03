@@ -61,6 +61,8 @@ import wetalk.parser.Command._
 
 final case class CreateSession(sessionId: String, user: User, transportConnection: ActorRef)
 
+final case class CloseSession(useId: String, sessionId: String)
+
 final case class GroupDispatchPackage(seqNo: String, userId: String, users: List[String], message: RequestMessage) extends RequestMessage
 
 case class ErrorMessage(seqNo: String, message: String) extends RequestMessage {
@@ -95,10 +97,6 @@ case class OfflineMessageResponse(seqNo: Long, message: String) extends Response
 }
 
 object HeartbeatPrefix extends CommandPrefix(2, 2)
-
-object HeartbeatMessage extends RequestMessage {
-  val seqNo = "0"
-}
 
 case class DispatchMessage(seqNo: String, to: String, message: ResponseMessage) extends RequestMessage
 
@@ -289,6 +287,31 @@ case class UserAddResponseResponse(seqNo: String, user: User) extends ResponseMe
 
   override def toString = s"5:8:$json"
 }
+
+object HeartbeatRequest extends RequestMessage {
+
+  lazy val json = Json.obj( "ec" -> 0, "em" -> "")
+
+  val seqNo: String = "0"
+
+  override def toString = s"2:2:$json"
+}
+
+object HeartbeatResponse extends ResponseMessage {
+
+  lazy val json = Json.obj( "ec" -> 0, "em" -> "")
+
+  val seqNo: String = "0"
+
+  override def toString = s"2:2:$json"
+}
+
+object DisconnectRequest extends RequestMessage {
+
+  val seqNo: String = "0"
+
+}
+
 
 object NOOP extends RequestMessage with ResponseMessage {
 

@@ -3,13 +3,16 @@ package wetalk.user
 import java.util.{Date, UUID}
 import java.util.concurrent.TimeUnit
 
-import akka.io.Tcp.Write
+import akka.contrib.pattern.ShardRegion.Passivate
+import scala.concurrent.duration._
+
 import akka.pattern.ask
 import akka.actor._
 import akka.util.Timeout
 import wetalk.parser._
-import wetalk.user.UserActor.InvalidPassword
 import wetalk.data._
+
+import scala.concurrent.forkjoin.ThreadLocalRandom
 
 /**
  * Created by goldratio on 11/18/14.
@@ -17,12 +20,79 @@ import wetalk.data._
 
 class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: ActorRef) extends Actor with ActorLogging {
   import context.dispatcher
+  import UserActor._
 
   private val serverPassword = context.system.settings.config.getString("wetalk.server.salt")
 
   implicit val timeout = Timeout(120, TimeUnit.SECONDS)
 
   var user: User = null
+  var sessionId: String = null
+
+  private lazy val scheduler = UserExtension(context.system).scheduler
+
+  private var heartbeatTask: Option[Cancellable] = None
+  private var closeTimeoutTask: Option[Cancellable] = None
+  private var idleTimeoutTask: Option[Cancellable] = None
+
+  def enableHeartbeat() {
+    log.debug("enabled heartbeat, will repeatly send heartbeat every {} seconds", wetalk.Settings.heartbeatInterval.seconds)
+    heartbeatTask foreach { _.cancel } // it better to confirm previous heartbeatTask was cancled
+    heartbeatTask = Some(scheduler.schedule(heartbeatDelay, wetalk.Settings.heartbeatInterval.seconds, self, HeartbeatTick))
+  }
+
+  def disableHeartbeat() {
+    log.debug("disabled heartbeat")
+    heartbeatTask foreach { _.cancel }
+    heartbeatTask = None
+  }
+
+  def enableCloseTimeout() {
+    log.debug("enabled close-timeout, will disconnect in {} seconds", wetalk.Settings.CloseTimeout)
+    closeTimeoutTask foreach { _.cancel } // it better to confirm previous closeTimeoutTask was cancled
+    if (context != null) {
+      closeTimeoutTask = Some(scheduler.scheduleOnce(wetalk.Settings.CloseTimeout.seconds, self, CloseTimeout))
+    }
+  }
+
+  def disableCloseTimeout() {
+    log.debug("disabled close-timeout")
+    closeTimeoutTask foreach { _.cancel }
+    closeTimeoutTask = None
+  }
+
+
+  def enableIdleTimeout() {
+    log.debug("enabled idle-timeout, will stop/exit in {} seconds", wetalk.Settings.IdleTimeout)
+    idleTimeoutTask foreach { _.cancel } // it better to confirm previous idleTimeoutTask was cancled
+    if (context != null) {
+      idleTimeoutTask = Some(scheduler.scheduleOnce(wetalk.Settings.IdleTimeout.seconds, self, IdleTimeout))
+    }
+  }
+
+  def disableIdleTimeout() {
+    log.debug("disabled idle-timeout")
+    idleTimeoutTask foreach { _.cancel }
+    idleTimeoutTask = None
+  }
+
+  def deactivate() {
+    log.debug("deactivated.")
+    disableHeartbeat()
+    disableCloseTimeout()
+  }
+
+  def doStop() {
+    deactivate()
+    disableIdleTimeout()
+
+    if (UserExtension(context.system).Settings.isCluster) {
+      context.parent ! Passivate(stopMessage = PoisonPill)
+    }
+    else {
+      self ! PoisonPill
+    }
+  }
 
   def receive = {
     case userAuth: UserAuth =>
@@ -32,8 +102,10 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
           val sessionId = UUID.randomUUID().toString
           sessionRegion ! CreateSession(sessionId, user, self)
           this.user = user
-          connection ! LoginResponse(userAuth.seqNo, user)
+          this.sessionId = sessionId
+          enableHeartbeat()
           context.become(authenticated)
+          connection ! LoginResponse(userAuth.seqNo, user)
         case e =>
           connection ! InvalidPassword
       }
@@ -42,9 +114,12 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
           connection ! ErrorMessage("0", "system error")
       }
     case _ =>
-      println("user not found")
+      println("user have not login")
 
   }
+
+
+
 
   def authenticated: Receive = {
     case userSync: UserSync =>
@@ -61,7 +136,7 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
             }
             connection ! ChatAckResponse(chatMessage.seqNo, chatMessage.timestamp)
           case _ =>
-            connection ! ErrorMessage("0", "system error")
+            connection ! ErrorMessage("0", "relationship not exist")
         }
         f onFailure {
           case t =>
@@ -153,15 +228,35 @@ class UserActor(connection: ActorRef, databaseActor: ActorRef, sessionRegion: Ac
     case request: FriendOperateRequest =>
       friendOperate(request)
 
-
     //TODO
     case userAddRequest: UserAddRequest =>
       addUserRequest(userAddRequest)
     case request: UserAddResponseRequest =>
       addUserResponse(request)
+
+    case HeartbeatTick => // scheduled sending heartbeat
+      log.debug("send heartbeat")
+      connection ! HeartbeatResponse
+
+      // keep previous close timeout. We may skip one closetimeout for this heartbeat, but we'll reset one at next heartbeat.
+      if (closeTimeoutTask.fold(true)(_.isCancelled)) {
+        enableCloseTimeout()
+      }
+    case HeartbeatRequest =>
+      log.debug("got heartbeat")
+      disableCloseTimeout()
+    case DisconnectRequest =>
+      connection ! UserActor.Quit
+      doStop()
+    case CloseTimeout =>
+      connection ! UserActor.Quit
+      sessionRegion ! CloseSession(user.id.toString, sessionId)
+      log.info("CloseTimeout disconnect: {}, user: {}", sessionId, user)
+      doStop()
     case _ =>
       println("tttt")
   }
+
 
   def friendOperate(request: FriendOperateRequest): Unit = {
     val f = databaseActor ? GetUser(request.id.toInt)
@@ -223,6 +318,12 @@ object UserActor {
     Props(classOf[UserActor], connection, databaseActor, sessionRegion)
   }
 
+  case object HeartbeatTick
+
+  case object CloseTimeout
+
+  case object IdleTimeout
+
   case class Authenticate(password: String)
 
   case class SetUsername(username: String)
@@ -245,4 +346,5 @@ object UserActor {
 
   case object EmptyState extends UserData
 
+  private def heartbeatDelay = ThreadLocalRandom.current.nextInt((math.min(wetalk.Settings.HeartbeatTimeout, wetalk.Settings.CloseTimeout) * 0.618).round.toInt).seconds
 }
