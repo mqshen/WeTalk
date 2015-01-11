@@ -28,7 +28,6 @@ trait ConnectionActor extends Actor with ActorLogging with FSM[Connection.Connec
 
   protected def remoteAddress: InetSocketAddress
 
-
   def userActor: ActorRef
 
   startWith(Open, Uninitialized(messages = Queue.empty))

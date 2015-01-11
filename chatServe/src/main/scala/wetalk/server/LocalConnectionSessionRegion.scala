@@ -41,7 +41,7 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
         case Some(userActor) =>
           userActor ! cmd
         case None =>
-          processOfflineMessage(cmd.to.toInt, cmd.message)
+          processOfflineMessage(cmd.to, cmd.message)
       }
     case cmd: GroupDispatchPackage =>
       cmd.users.filter(userId => userId != cmd.userId).foreach { userId =>
@@ -64,7 +64,7 @@ class LocalConnectionSessionRegion(databaseActor: ActorRef, cacheActor: ActorRef
     case Terminated(ref) =>
   }
 
-  def processOfflineMessage(userId: Int, message: ResponseMessage): Unit = {
+  def processOfflineMessage(userId: String, message: ResponseMessage): Unit = {
     databaseActor ! OfflineMessage(userId, message)
   }
 }

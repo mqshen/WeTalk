@@ -74,7 +74,7 @@ case class ErrorMessage(seqNo: String, message: String) extends RequestMessage {
   override def toString = s"7:$seqNo:$message"
 }
 
-case class LoginResponse(seqNo: String, user: User) extends ResponseMessage {
+case class LoginResponse(seqNo: String, user: User, token: String) extends ResponseMessage {
   implicit val userFormat = Json.format[User]
   val resultCode = 0
   val errorMessage = ""
@@ -83,17 +83,32 @@ case class LoginResponse(seqNo: String, user: User) extends ResponseMessage {
     "ec" -> 0,
     "em" -> "",
     "seqNo" -> seqNo,
-    "user" -> user)
+    "user" -> user,
+    "token" -> token)
 
   override def toString = s"1:1:$json"
 }
 
+case class LoginAuthResponse(seqNo: String, user: User, token: String) extends ResponseMessage {
+  implicit val userFormat = Json.format[User]
+  val resultCode = 0
+  val errorMessage = ""
+
+  lazy val json = Json.obj(
+    "ec" -> 0,
+    "em" -> "",
+    "seqNo" -> seqNo,
+    "user" -> user,
+    "token" -> token)
+
+  override def toString = s"1:2:$json"
+}
 case class OfflineMessageResponse(seqNo: Long, message: String) extends ResponseMessage {
   val json = Json.obj("seqNo" -> seqNo,
     "ec" -> 0,
     "message" -> message)
 
-  override def toString = s"1:2:$json"
+  override def toString = s"1:3:$json"
 }
 
 object HeartbeatPrefix extends CommandPrefix(2, 2)
@@ -222,10 +237,10 @@ object FriendOperate extends Enumeration {
   val Add, ReceiveAdd, Accept, ReceiveAccept, Reject, ReceiveReject = Value
 }
 
-case class FriendOperateRequest(seqNo: String, id: String, operate: FriendOperate, greeting: String) extends RequestMessage
+case class UserOperateRequest(seqNo: String, id: String, operate: FriendOperate, greeting: String) extends RequestMessage
 
 
-case class FriendOperateResponse(seqNo: String, to: String, user: User, operate: FriendOperate, greeting: String) extends ResponseMessage {
+case class UserOperateResponse(seqNo: String, to: String, user: User, operate: FriendOperate, greeting: String) extends ResponseMessage {
   implicit val userFormat = Json.format[User]
   //implicit val operateFormat = Json.format[FriendOperate]
   val resultCode = 0
